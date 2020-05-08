@@ -33,7 +33,7 @@ The Tenant Dial Plan Tool is a PowerShell based tool that allows you to configur
  and translation of the highest priority match (the one highlighted in green) will be used to do the translation on the Test Number and the resultant translated number will be displayed in the Test Result.
 
 
-**For further details on the tool visit the blog post: [https://www.myskypelab.com/2019/09/teams-tenant-dial-plan-tool.html](https://www.myskypelab.com/2019/09/teams-tenant-dial-plan-tool.html)**
+**For further details on the tool visit the blog post: [https://www.myteamslab.com/2019/09/teams-tenant-dial-plan-tool.html](https://www.myskypelab.com/2019/09/teams-tenant-dial-plan-tool.html)**
 
 
  
