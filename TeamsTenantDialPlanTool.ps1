@@ -1,14 +1,14 @@
 ########################################################################
 # Name: Teams Tenant Dial Plan Tool 
-# Version: v1.00 (1/9/2019)
+# Version: v1.01 (13/6/2021)
 # Date: 1/9/2019
 # Created By: James Cussen
-# Web Site: http://www.myskypelab.com (formally http://www.mylynclab.com)
+# Web Site: http://www.myteamslab.com
 # 
-# Notes: This is a PowerShell tool. To run the tool, open it from the PowerShell command line on a Lync server.
-#		 For more information on the requirements for setting up and using this tool please visit http://www.myskypelab.com.
+# Notes: This is a PowerShell tool. To run the tool, open it from the PowerShell command line on a PC that has the MicrosoftTeams PowerShell module installed. Get it by opening a PowerShell window using Run as Administrator and running "Install-Module MicrosoftTeams -AllowClobber"
+#		 For more information on the requirements for setting up and using this tool please visit http://www.myteamslab.com.
 #
-# Copyright: Copyright (c) 2019, James Cussen (www.myskypelab.com) All rights reserved.
+# Copyright: Copyright (c) 2021, James Cussen (www.myteamslab.com) All rights reserved.
 # Licence: 	Redistribution and use of script, source and binary forms, with or without modification, are permitted provided that the following conditions are met:
 #				1) Redistributions of script code must retain the above copyright notice, this list of conditions and the following disclaimer.
 #				2) Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
@@ -19,6 +19,10 @@
 #
 # Release Notes:
 # 1.00 Initial Release.
+#
+# 1.01 Teams Module Update
+#	- The Skype for Business PowerShell module is being deprecated and the Teams Module is finally good enough to use with this tool. As a result, this tool has now been updated for use with the Teams PowerShell Module version 2.3.1 or above.
+#
 ########################################################################
 
 [cmdletbinding()]
@@ -50,6 +54,11 @@ elseif($MajorVersion -eq  "5")
 {
 	Write-Host "This machine has version 5 PowerShell installed. CHECK PASSED!" -foreground "green"
 }
+elseif(([int]$MajorVersion) -ge  6)
+{
+	Write-Host "This machine has version $MajorVersion PowerShell installed. This version uses .NET Core which doesn't support Windows Forms. Please use PowerShell 5 instead." -foreground "red"
+	exit
+}
 else
 {
 	Write-Host "This machine has version $MajorVersion PowerShell installed. Unknown level of support for this version." -foreground "yellow"
@@ -72,11 +81,60 @@ if($OnlinePasswordInput -ne $null -and $OnlinePasswordInput -ne "")
 	$script:OnlinePassword = $OnlinePasswordInput
 }
 
+Function Get-MyModule 
+{ 
+Param([string]$name) 
+	
+	if(-not(Get-Module -name $name)) 
+	{ 
+		if(Get-Module -ListAvailable | Where-Object { $_.name -eq $name }) 
+		{ 
+			Import-Module -Name $name 
+			return $true 
+		} #end if module available then import 
+		else 
+		{ 
+			return $false 
+		} #module not available 
+	} # end if not module 
+	else 
+	{ 
+		return $true 
+	} #module already loaded 
+} #end function get-MyModule
 
-#Office 365 reconnect variables
-$Script:O365Creds = $null
-$Script:O365ReconnectAttempts = 0
-$Script:UserConnectedToSfBOnline = $false
+$Script:TeamsModuleAvailable = $false
+
+Write-Host "--------------------------------------------------------------" -foreground "green"
+Write-Host "Checking for PowerShell Modules..." -foreground "green"
+#Import MicrosoftTeams Module
+if(Get-MyModule "MicrosoftTeams")
+{
+	#Invoke-Expression "Import-Module Lync"
+	Write-Host "INFO: Teams module should be at least 2.3.1" -foreground "yellow"
+	$version = (Get-Module -name "MicrosoftTeams").Version
+	Write-Host "INFO: Your current version of Teams Module: $version" -foreground "yellow"
+	if([System.Version]$version -ge [System.Version]"2.3.1")
+	{
+		Write-Host "Congratulations, your version is acceptable!" -foreground "green"
+	}
+	else
+	{
+		Write-Host "ERROR: You need to update your Teams Version to higher than 2.3.1. Use the command Update-Module MicrosoftTeams" -foreground "red"
+		exit
+	}
+	Write-Host "Found MicrosoftTeams Module..." -foreground "green"
+	$Script:TeamsModuleAvailable = $true
+}
+else
+{
+	Write-Host "ERROR: You do not have the Microsoft Teams Module installed. Get it by opening a PowerShell window using `"Run as Administrator`" and running `"Install-Module MicrosoftTeams -AllowClobber`"" -foreground "red"
+	#Can't find module so exit
+	exit
+}
+
+Write-Host "--------------------------------------------------------------" -foreground "green"
+
 
 
 # Set up the form  ============================================================
@@ -85,11 +143,11 @@ $Script:UserConnectedToSfBOnline = $false
 [void] [System.Reflection.Assembly]::LoadWithPartialName("System.Drawing") 
 
 $mainForm = New-Object System.Windows.Forms.Form 
-$mainForm.Text = "Teams Tenant Dial Plan Tool 1.00"
+$mainForm.Text = "Teams Tenant Dial Plan Tool 1.01"
 $mainForm.Size = New-Object System.Drawing.Size(525,680) 
 $mainForm.MinimumSize = New-Object System.Drawing.Size(520,450) 
 $mainForm.StartPosition = "CenterScreen"
-[byte[]]$WindowIcon = @(137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 32, 0, 0, 0, 32, 8, 6, 0, 0, 0, 115, 122, 122, 244, 0, 0, 0, 6, 98, 75, 71, 68, 0, 255, 0, 255, 0, 255, 160, 189, 167, 147, 0, 0, 0, 9, 112, 72, 89, 115, 0, 0, 11, 19, 0, 0, 11, 19, 1, 0, 154, 156, 24, 0, 0, 0, 7, 116, 73, 77, 69, 7, 225, 7, 26, 1, 36, 51, 211, 178, 227, 235, 0, 0, 5, 235, 73, 68, 65, 84, 88, 195, 197, 151, 91, 108, 92, 213, 21, 134, 191, 189, 207, 57, 115, 159, 216, 78, 176, 27, 98, 72, 226, 88, 110, 66, 66, 34, 185, 161, 168, 193, 73, 21, 17, 2, 2, 139, 75, 164, 182, 106, 145, 170, 190, 84, 74, 104, 65, 16, 144, 218, 138, 138, 244, 173, 69, 106, 101, 42, 129, 42, 149, 170, 162, 15, 168, 168, 151, 7, 4, 22, 180, 1, 41, 92, 172, 52, 196, 68, 105, 130, 19, 138, 98, 76, 154, 27, 174, 227, 248, 58, 247, 57, 103, 175, 62, 236, 241, 177, 199, 246, 140, 67, 26, 169, 251, 237, 236, 61, 179, 215, 191, 214, 191, 214, 191, 214, 86, 188, 62, 37, 252, 31, 151, 174, 123, 42, 224, 42, 72, 56, 138, 152, 99, 191, 175, 247, 114, 107, 29, 172, 75, 106, 94, 254, 74, 156, 109, 13, 58, 180, 155, 53, 240, 216, 64, 129, 63, 156, 43, 95, 55, 0, 106, 62, 5, 158, 134, 83, 59, 147, 116, 36, 106, 7, 103, 188, 44, 228, 13, 120, 202, 126, 151, 12, 100, 3, 225, 183, 231, 203, 60, 55, 88, 66, 4, 80, 215, 0, 96, 89, 68, 113, 97, 87, 138, 180, 3, 163, 101, 120, 116, 160, 192, 161, 81, 159, 203, 69, 33, 230, 40, 58, 27, 52, 251, 215, 69, 248, 198, 74, 183, 238, 165, 175, 141, 248, 60, 114, 178, 192, 165, 188, 44, 9, 100, 22, 128, 192, 127, 238, 73, 209, 18, 81, 252, 109, 52, 224, 222, 247, 179, 179, 46, 206, 93, 102, 142, 119, 193, 76, 216, 96, 247, 13, 46, 223, 189, 201, 101, 207, 74, 143, 148, 99, 183, 159, 250, 184, 72, 207, 96, 169, 46, 136, 16, 192, 183, 91, 61, 94, 233, 140, 241, 81, 198, 176, 229, 173, 204, 226, 198, 175, 102, 5, 194, 243, 157, 113, 246, 221, 236, 225, 42, 232, 29, 9, 184, 255, 104, 174, 62, 0, 165, 192, 239, 78, 163, 129, 174, 195, 57, 14, 143, 5, 255, 115, 114, 197, 29, 197, 200, 221, 41, 82, 14, 188, 63, 30, 240, 245, 190, 220, 162, 145, 208, 0, 141, 174, 66, 1, 37, 129, 195, 163, 254, 34, 40, 1, 191, 70, 25, 250, 50, 75, 197, 156, 149, 15, 132, 27, 254, 62, 205, 229, 178, 176, 163, 201, 161, 103, 115, 172, 182, 14, 196, 181, 53, 114, 38, 107, 64, 22, 194, 92, 147, 80, 200, 67, 105, 50, 247, 165, 171, 156, 104, 141, 105, 70, 186, 211, 200, 131, 105, 214, 46, 82, 53, 69, 3, 119, 244, 217, 240, 63, 177, 214, 35, 233, 170, 250, 66, 164, 20, 11, 221, 52, 240, 171, 77, 49, 114, 6, 198, 74, 18, 158, 106, 5, 239, 110, 79, 208, 236, 41, 254, 93, 16, 206, 102, 204, 162, 30, 14, 78, 27, 158, 60, 93, 68, 1, 7, 191, 150, 176, 73, 60, 31, 64, 182, 178, 185, 49, 169, 103, 80, 132, 235, 166, 164, 38, 238, 64, 66, 67, 104, 94, 224, 229, 206, 56, 111, 93, 182, 116, 61, 246, 81, 177, 118, 166, 107, 248, 253, 121, 43, 92, 119, 52, 106, 86, 39, 245, 66, 0, 147, 101, 9, 105, 188, 171, 165, 186, 198, 127, 179, 57, 202, 233, 233, 106, 216, 9, 79, 113, 169, 96, 216, 119, 179, 135, 47, 112, 240, 114, 185, 110, 169, 77, 149, 132, 95, 159, 181, 32, 182, 54, 58, 139, 83, 112, 231, 7, 121, 0, 126, 210, 17, 129, 96, 150, 134, 213, 9, 205, 84, 185, 42, 29, 121, 103, 91, 130, 15, 38, 45, 228, 105, 95, 40, 207, 97, 173, 209, 83, 124, 179, 213, 227, 153, 13, 81, 16, 91, 205, 247, 174, 116, 113, 42, 118, 31, 89, 227, 86, 37, 109, 8, 224, 189, 97, 159, 178, 64, 71, 82, 207, 166, 129, 192, 75, 231, 203, 180, 68, 170, 235, 252, 95, 57, 195, 150, 138, 218, 156, 43, 8, 70, 102, 43, 98, 96, 103, 146, 63, 119, 198, 120, 115, 216, 210, 243, 179, 245, 81, 222, 248, 106, 156, 141, 73, 77, 201, 192, 109, 141, 14, 86, 171, 231, 39, 161, 99, 209, 158, 43, 152, 48, 156, 237, 41, 205, 123, 163, 1, 174, 99, 55, 38, 3, 225, 209, 142, 40, 7, 78, 23, 217, 182, 220, 2, 120, 247, 202, 172, 59, 27, 155, 28, 90, 163, 138, 76, 32, 28, 159, 12, 192, 23, 30, 110, 181, 148, 238, 63, 85, 64, 128, 166, 121, 149, 160, 23, 118, 96, 21, 122, 255, 226, 150, 40, 103, 178, 134, 132, 182, 123, 167, 50, 134, 95, 222, 18, 229, 108, 198, 112, 99, 212, 238, 29, 155, 156, 5, 240, 253, 53, 54, 84, 127, 25, 246, 9, 4, 214, 175, 112, 104, 139, 107, 46, 20, 132, 129, 41, 179, 196, 60, 96, 108, 228, 155, 61, 107, 60, 237, 41, 140, 82, 100, 138, 66, 186, 146, 151, 67, 89, 195, 119, 142, 231, 65, 36, 212, 251, 209, 188, 132, 212, 116, 85, 18, 236, 233, 143, 139, 0, 252, 174, 34, 62, 71, 39, 131, 80, 107, 138, 82, 11, 128, 182, 213, 176, 33, 169, 33, 128, 159, 174, 143, 176, 231, 104, 30, 20, 172, 170, 120, 187, 111, 181, 199, 171, 151, 124, 80, 48, 94, 17, 204, 111, 173, 246, 160, 44, 188, 182, 45, 73, 103, 131, 189, 110, 120, 218, 240, 192, 74, 151, 29, 77, 22, 80, 207, 80, 137, 6, 79, 227, 42, 136, 42, 112, 230, 244, 153, 16, 128, 18, 155, 193, 0, 127, 237, 74, 48, 81, 18, 50, 190, 128, 8, 55, 198, 236, 207, 186, 251, 243, 161, 10, 205, 112, 255, 189, 85, 46, 178, 103, 25, 61, 67, 37, 222, 24, 177, 168, 142, 237, 74, 209, 28, 213, 76, 248, 66, 206, 192, 67, 95, 242, 56, 240, 229, 8, 253, 21, 26, 126, 176, 54, 178, 112, 34, 18, 5, 63, 255, 180, 196, 211, 237, 17, 20, 240, 236, 39, 37, 11, 79, 89, 158, 247, 159, 242, 57, 50, 211, 164, 20, 60, 126, 178, 64, 68, 131, 163, 96, 239, 201, 2, 34, 112, 100, 220, 231, 135, 107, 35, 188, 114, 209, 103, 119, 179, 67, 163, 171, 24, 200, 24, 122, 134, 138, 124, 158, 23, 86, 197, 53, 23, 239, 74, 242, 112, 171, 199, 243, 131, 69, 112, 212, 188, 137, 40, 0, 121, 48, 109, 109, 244, 102, 174, 105, 8, 92, 151, 208, 244, 109, 79, 112, 177, 32, 220, 182, 76, 115, 123, 95, 142, 254, 137, 32, 188, 127, 172, 59, 133, 163, 160, 225, 245, 105, 112, 213, 188, 42, 112, 224, 197, 138, 108, 158, 216, 153, 248, 226, 61, 88, 224, 79, 91, 227, 180, 189, 157, 97, 115, 74, 115, 104, 44, 160, 127, 78, 153, 162, 160, 28, 64, 84, 171, 218, 101, 184, 247, 159, 5, 174, 248, 176, 37, 165, 121, 118, 83, 244, 11, 5, 161, 179, 209, 225, 76, 222, 240, 194, 230, 24, 142, 134, 61, 253, 121, 112, 170, 69, 172, 33, 162, 24, 47, 75, 157, 177, 92, 65, 87, 95, 22, 128, 31, 183, 69, 56, 176, 33, 90, 37, 205, 245, 214, 241, 241, 128, 67, 35, 1, 39, 38, 13, 94, 239, 52, 147, 229, 234, 255, 221, 211, 234, 17, 85, 208, 119, 37, 176, 237, 116, 177, 169, 120, 38, 148, 91, 151, 59, 124, 216, 149, 168, 12, 153, 1, 123, 79, 228, 25, 206, 203, 82, 47, 137, 186, 244, 100, 187, 211, 36, 52, 220, 255, 97, 158, 222, 138, 84, 235, 26, 131, 26, 199, 198, 3, 154, 14, 102, 152, 240, 133, 7, 90, 28, 62, 223, 157, 226, 165, 173, 113, 86, 120, 138, 168, 14, 29, 176, 169, 163, 150, 54, 254, 199, 219, 227, 36, 52, 156, 206, 25, 122, 47, 148, 107, 191, 11, 22, 72, 165, 130, 95, 108, 140, 241, 163, 54, 111, 230, 46, 138, 6, 2, 17, 130, 202, 212, 173, 21, 228, 12, 220, 249, 143, 28, 3, 19, 166, 170, 53, 183, 196, 20, 71, 182, 39, 105, 139, 219, 205, 230, 131, 25, 70, 75, 114, 245, 0, 102, 100, 122, 69, 76, 177, 171, 217, 229, 153, 142, 8, 183, 166, 106, 243, 112, 46, 47, 97, 146, 165, 92, 104, 175, 140, 106, 99, 62, 108, 122, 39, 195, 112, 65, 234, 191, 140, 150, 10, 37, 70, 64, 43, 54, 164, 53, 77, 17, 133, 8, 92, 42, 26, 118, 44, 119, 121, 170, 61, 66, 103, 186, 26, 220, 80, 78, 120, 238, 179, 18, 47, 12, 150, 170, 43, 226, 154, 0, 92, 197, 155, 0, 20, 237, 203, 172, 238, 127, 50, 101, 108, 239, 175, 147, 36, 238, 117, 125, 234, 86, 12, 125, 58, 51, 100, 106, 150, 124, 36, 254, 23, 153, 41, 93, 205, 81, 212, 105, 60, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130)
+[byte[]]$WindowIcon = @(71, 73, 70, 56, 57, 97, 32, 0, 32, 0, 231, 137, 0, 0, 52, 93, 0, 52, 94, 0, 52, 95, 0, 53, 93, 0, 53, 94, 0, 53, 95, 0,53, 96, 0, 54, 94, 0, 54, 95, 0, 54, 96, 2, 54, 95, 0, 55, 95, 1, 55, 96, 1, 55, 97, 6, 55, 96, 3, 56, 98, 7, 55, 96, 8, 55, 97, 9, 56, 102, 15, 57, 98, 17, 58, 98, 27, 61, 99, 27, 61, 100, 24, 61, 116, 32, 63, 100, 36, 65, 102, 37, 66, 103, 41, 68, 104, 48, 72, 106, 52, 75, 108, 55, 77, 108, 57, 78, 109, 58, 79, 111, 59, 79, 110, 64, 83, 114, 65, 83, 114, 68, 85, 116, 69, 86, 117, 71, 88, 116, 75, 91, 120, 81, 95, 123, 86, 99, 126, 88, 101, 125, 89, 102, 126, 90, 103, 129, 92, 103, 130, 95, 107, 132, 97, 108, 132, 99, 110, 134, 100, 111, 135, 102, 113, 136, 104, 114, 137, 106, 116, 137, 106,116, 139, 107, 116, 139, 110, 119, 139, 112, 121, 143, 116, 124, 145, 120, 128, 147, 121, 129, 148, 124, 132, 150, 125,133, 151, 126, 134, 152, 127, 134, 152, 128, 135, 152, 130, 137, 154, 131, 138, 155, 133, 140, 157, 134, 141, 158, 135,141, 158, 140, 146, 161, 143, 149, 164, 147, 152, 167, 148, 153, 168, 151, 156, 171, 153, 158, 172, 153, 158, 173, 156,160, 174, 156, 161, 174, 158, 163, 176, 159, 163, 176, 160, 165, 177, 163, 167, 180, 166, 170, 182, 170, 174, 186, 171,175, 186, 173, 176, 187, 173, 177, 187, 174, 178, 189, 176, 180, 190, 177, 181, 191, 179, 182, 192, 180, 183, 193, 182,185, 196, 185, 188, 197, 188, 191, 200, 190, 193, 201, 193, 195, 203, 193, 196, 204, 196, 198, 206, 196, 199, 207, 197,200, 207, 197, 200, 208, 198, 200, 208, 199, 201, 208, 199, 201, 209, 200, 202, 209, 200, 202, 210, 202, 204, 212, 204,206, 214, 206, 208, 215, 206, 208, 216, 208, 210, 218, 209, 210, 217, 209, 210, 220, 209, 211, 218, 210, 211, 219, 210,211, 220, 210, 212, 219, 211, 212, 219, 211, 212, 220, 212, 213, 221, 214, 215, 223, 215, 216, 223, 215, 216, 224, 216,217, 224, 217, 218, 225, 218, 219, 226, 218, 220, 226, 219, 220, 226, 219, 220, 227, 220, 221, 227, 221, 223, 228, 224,225, 231, 228, 229, 234, 230, 231, 235, 251, 251, 252, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,255, 255, 255, 255, 255, 255, 255, 255, 33, 254, 17, 67, 114, 101, 97, 116, 101, 100, 32, 119, 105, 116, 104, 32, 71, 73, 77, 80, 0, 33, 249, 4, 1, 10, 0, 255, 0, 44, 0, 0, 0, 0, 32, 0, 32, 0, 0, 8, 254, 0, 255, 29, 24, 72, 176, 160, 193, 131, 8, 25, 60, 16, 120, 192, 195, 10, 132, 16, 35, 170, 248, 112, 160, 193, 64, 30, 135, 4, 68, 220, 72, 16, 128, 33, 32, 7, 22, 92, 68, 84, 132, 35, 71, 33, 136, 64, 18, 228, 81, 135, 206, 0, 147, 16, 7, 192, 145, 163, 242, 226, 26, 52, 53, 96, 34, 148, 161, 230, 76, 205, 3, 60, 214, 204, 72, 163, 243, 160, 25, 27, 62, 11, 6, 61, 96, 231, 68, 81, 130, 38, 240, 28, 72, 186, 114, 205, 129, 33, 94, 158, 14, 236, 66, 100, 234, 207, 165, 14, 254, 108, 120, 170, 193, 15, 4, 175, 74, 173, 30, 120, 50, 229, 169, 20, 40, 3, 169, 218, 28, 152, 33, 80, 2, 157, 6, 252, 100, 136, 251, 85, 237, 1, 46, 71,116, 26, 225, 66, 80, 46, 80, 191, 37, 244, 0, 48, 57, 32, 15, 137, 194, 125, 11, 150, 201, 97, 18, 7, 153, 130, 134, 151, 18, 140, 209, 198, 36, 27, 24, 152, 35, 23, 188, 147, 98, 35, 138, 56, 6, 51, 251, 29, 24, 4, 204, 198, 47, 63, 82, 139, 38, 168, 64, 80, 7, 136, 28, 250, 32, 144, 157, 246, 96, 19, 43, 16, 169, 44, 57, 168, 250, 32, 6, 66, 19, 14, 70, 248, 99, 129, 248, 236, 130, 90, 148, 28, 76, 130, 5, 97, 241, 131, 35, 254, 4, 40, 8, 128, 15, 8, 235, 207, 11, 88, 142, 233, 81, 112, 71, 24, 136, 215, 15, 190, 152, 67, 128, 224, 27, 22, 232, 195, 23, 180, 227, 98, 96, 11, 55, 17, 211, 31, 244, 49, 102, 160, 24, 29, 249, 201, 71, 80, 1, 131, 136, 16, 194, 30, 237, 197, 215, 91, 68, 76, 108, 145, 5, 18, 27, 233, 119, 80, 5, 133, 0, 66, 65, 132, 32, 73, 48, 16, 13, 87, 112, 20, 133, 19, 28, 85, 113, 195, 1, 23, 48, 164, 85, 68, 18, 148, 24, 16, 0, 59)
 $ico = New-Object IO.MemoryStream($WindowIcon, 0, $WindowIcon.Length)
 $mainForm.Icon = [System.Drawing.Icon]::FromHandle((new-object System.Drawing.Bitmap -argument $ico).GetHIcon())
 $mainForm.KeyPreview = $True
@@ -100,32 +158,30 @@ $global:SFBOsession = $null
 #ConnectButton
 $ConnectOnlineButton = New-Object System.Windows.Forms.Button
 $ConnectOnlineButton.Location = New-Object System.Drawing.Size(20,7)
-$ConnectOnlineButton.Size = New-Object System.Drawing.Size(100,20)
-$ConnectOnlineButton.Text = "Connect SfBO"
+$ConnectOnlineButton.Size = New-Object System.Drawing.Size(110,20)
+$ConnectOnlineButton.Text = "Connect Teams"
 $ConnectTooltip = New-Object System.Windows.Forms.ToolTip
-$ConnectToolTip.SetToolTip($ConnectOnlineButton, "Connect/Disconnect from Skype for Business Online")
+$ConnectToolTip.SetToolTip($ConnectOnlineButton, "Connect/Disconnect from Teams")
 #$ConnectButton.tabIndex = 1
 $ConnectOnlineButton.Enabled = $true
 $ConnectOnlineButton.Add_Click({	
 
 	$ConnectOnlineButton.Enabled = $false
 	
-	$StatusLabel.Text = "STATUS: Connecting to O365..."
+	$StatusLabel.Text = "STATUS: Connecting to Teams..."
 	
-	if($ConnectOnlineButton.Text -eq "Connect SfBO")
+	if($ConnectOnlineButton.Text -eq "Connect Teams")
 	{
-		ConnectSkypeForBusinessOnline
+		ConnectTeamsModule
 		[System.Windows.Forms.Application]::DoEvents()
-		CheckSkypeForBusinessOnline
+		CheckTeamsOnline
 	}
-	elseif($ConnectOnlineButton.Text -eq "Disconnect SfBO")
+	elseif($ConnectOnlineButton.Text -eq "Disconnect Teams")
 	{	
 		$ConnectOnlineButton.Text = "Disconnecting..."
-		$StatusLabel.Text = "STATUS: Disconnecting from O365..."
-		$Script:UserConnectedToSfBOnline = $false
-		DisconnectSkypeForBusinessOnline
-		CheckSkypeForBusinessOnline
-		$Script:O365Creds = $null
+		$StatusLabel.Text = "STATUS: Disconnecting from Teams..."
+		DisconnectTeams
+		CheckTeamsOnline
 	}
 	
 	$ConnectOnlineButton.Enabled = $true
@@ -136,7 +192,7 @@ $mainForm.Controls.Add($ConnectOnlineButton)
 
 
 $ConnectedOnlineLabel = New-Object System.Windows.Forms.Label
-$ConnectedOnlineLabel.Location = New-Object System.Drawing.Size(125,10) 
+$ConnectedOnlineLabel.Location = New-Object System.Drawing.Size(135,10) 
 $ConnectedOnlineLabel.Size = New-Object System.Drawing.Size(100,15) 
 $ConnectedOnlineLabel.Text = "Connected"
 $ConnectedOnlineLabel.TabStop = $false
@@ -156,10 +212,10 @@ $MyLinkLabel.VisitedLinkColor = [System.Drawing.Color]::Blue
 $MyLinkLabel.LinkBehavior = [System.Windows.Forms.LinkBehavior]::HoverUnderline
 $MyLinkLabel.LinkColor = [System.Drawing.Color]::Navy
 $MyLinkLabel.TabStop = $False
-$MyLinkLabel.Text = "www.myskypelab.com"
+$MyLinkLabel.Text = "www.myteamslab.com"
 $MyLinkLabel.add_click(
 {
-	 [system.Diagnostics.Process]::start("http://www.myskypelab.com")
+	 [system.Diagnostics.Process]::start("http://www.myteamslab.com")
 })
 $mainForm.Controls.Add($MyLinkLabel)
 
@@ -899,182 +955,159 @@ $ToolTip.SetToolTip($DeleteAllButton, "The Delete All button will delete all the
 $ToolTip.SetToolTip($OptimizeDeviceDialingLabel, "Indicates whether Access Prefix`r`nis being applied by the system.")
 
 
-function ConnectSkypeForBusinessOnline
+
+function ConnectTeamsModule
 {
 	$ConnectOnlineButton.Text = "Connecting..."
-	$StatusLabel.Text = "STATUS: Connecting to O365..."
-	Write-Host "INFO: Connecting to O365..." -foreground "Yellow"
+	$StatusLabel.Text = "Connecting to Microsoft Teams..."
+	Write-Host "INFO: Connecting to Microsoft Teams..." -foreground "Yellow"
 	[System.Windows.Forms.Application]::DoEvents()
-	if($global:SFBOsession)
+	
+	if (Get-Module -ListAvailable -Name MicrosoftTeams)
 	{
-		Remove-PSSession $global:SFBOsession
-	}
-	if (Get-Module -ListAvailable -Name SkypeOnlineConnector)
-	{
-		Import-module SkypeOnlineConnector
-		
-		if($Script:O365Creds -ne $null)
-		{
-			$cred = $Script:O365Creds
-		}
-		elseif($script:OnlineUsername -ne "" -and $script:OnlineUsername -ne $null -and $script:OnlinePassword -ne "" -and $script:OnlinePassword -ne $null)
-		{
-			$secpasswd = ConvertTo-SecureString $script:OnlinePassword -AsPlainText -Force
-			$cred = New-Object System.Management.Automation.PSCredential ($script:OnlineUsername, $secpasswd)
-		}
-		elseif($script:OnlineUsername -ne "" -and $script:OnlineUsername -ne $null)
-		{
-			$cred = Get-Credential -Username $script:OnlineUsername -Message "Skype for Business Online"
-		}
-		else
-		{
-			$cred = Get-Credential -Message "Skype for Business Online"
-		}
-		
+		Import-Module MicrosoftTeams
+		$cred = Get-Credential
 		if($cred)
 		{
 			try
 			{
-				$global:SFBOsession = New-CsOnlineSession -Credential $cred -ErrorAction Stop #-SessionOption $pso   #MFA FAILS HERE
-				$result = Import-PSSession $global:SFBOsession -AllowClobber
-				if($result -ne $null)
+				(Connect-MicrosoftTeams -Credential $cred) 2> $null
+				Get-CsTenantDialPlan | select-object identity | ForEach-Object {[void] $policyDropDownBox.Items.Add(($_.identity).Replace("Tag:",""))}
+	
+				$numberOfItems = $policyDropDownBox.Items.count
+				if($numberOfItems -gt 0)
 				{
-					$Script:O365Creds = $cred
-					$Script:O365ReconnectAttempts = 0
+					$policyDropDownBox.SelectedIndex = 0
 				}
-				$Script:UserConnectedToSfBOnline = $true
+				GetNormalisationPolicy
 				
-				#Fill-Content
-				CheckSkypeForBusinessOnlineInitial
+				if($currentIndex -ne $null)
+				{
+					if($currentIndex -lt $dgv.Rows.Count)
+					{$dgv.Rows[$currentIndex].Selected = $True}
+				}
+				
 				EnableAllButtons
-				<#
-				if(([array] (Get-CsOnlinePSTNGateway -ErrorAction SilentlyContinue)).count -eq 0)
-				{
-					$NoUsagesWarningLabel.Text = "No Gateways assigned. Add a gateway to get started."
-				}
-				else
-				{
-					$NoUsagesWarningLabel.Text = "This Voice Routing Policy has no Usages assigned."
-				}
-				#>
-				$StatusLabel.Text = ""
+				
+				$ConnectOnlineButton.Text = "Disconnect Teams"
+				
 				return $true
 			}
 			catch
 			{
-				if($_ -match "you must use multi-factor authentication to access") #MFA FALLBACK!
+				if($_.Exception -match "you must use multi-factor authentication to access" -or $_.Exception -match "The security token could not be authenticated or authorized") #MFA FALLBACK!
 				{
-					Import-Module SkypeOnlineConnector
-					$sfbSession = New-CsOnlineSession -UserName $cred.Username
-					$result = Import-PSSession $sfbSession
-					if($result -ne $null)
+					try
 					{
-						$Script:O365Creds = $cred
-						$Script:O365ReconnectAttempts = 0
-					}
-					$Script:UserConnectedToSfBOnline = $true
+						(Connect-MicrosoftTeams) 2> $null
+						
+						Get-CsTenantDialPlan | select-object identity | ForEach-Object {[void] $policyDropDownBox.Items.Add(($_.identity).Replace("Tag:",""))}
+	
+						$numberOfItems = $policyDropDownBox.Items.count
+						if($numberOfItems -gt 0)
+						{
+							$policyDropDownBox.SelectedIndex = 0
+						}
+						GetNormalisationPolicy
+						
+						if($currentIndex -ne $null)
+						{
+							if($currentIndex -lt $dgv.Rows.Count)
+							{$dgv.Rows[$currentIndex].Selected = $True}
+						}
+						
+						EnableAllButtons
+						
+						$ConnectOnlineButton.Text = "Disconnect Teams"
 					
-					#Fill-Content
-					CheckSkypeForBusinessOnlineInitial
-					EnableAllButtons
-					
-					<#
-					if(([array] (Get-CsOnlinePSTNGateway -ErrorAction SilentlyContinue)).count -eq 0)
-					{
-						$NoUsagesWarningLabel.Text = "No Gateways assigned. Add a gateway to get started."
+						return $true
 					}
-					else
+					catch
 					{
-						$NoUsagesWarningLabel.Text = "This Voice Routing Policy has no Usages assigned."
+						if($_.Exception -match "User canceled authentication")
+						{
+							Write-Host "INFO: Canceled authentication." -foreground "yellow"
+							DisableAllButtons
+							return $false
+						}
+						else
+						{
+							Write-Host "ERROR: " $_.Exception -foreground "red"
+							DisableAllButtons
+							return $false
+						}
 					}
-					#>
-					$StatusLabel.Text = ""
-					return $true
+				}
+				elseif($_.Exception -match "Error validating credentials due to invalid username or password.")
+				{
+					Write-Host "ERROR: Error validating credentials due to invalid username or password." -foreground "red"
+					DisableAllButtons
+					return $false
 				}
 				else
 				{
-					Write-Host "Error: $_.Exception.Message" -foreground "red"
-					$StatusLabel.Text = "ERROR: Connection failed."
-					$Script:O365Creds = $null
-					$StatusLabel.Text = ""
+					Write-Host "ERROR: " $_.Exception -foreground "red"
+					DisableAllButtons
 					return $false	
 				}
+				
+				Write-Host "ERROR: " $_.Exception -foreground "red"
+				DisableAllButtons
+				return $false	
 			}
 		}
-		else
-		{
-			Write-Host "Error: No credentials supplied." -foreground "red"
-			$StatusLabel.Text = "ERROR: No credentials supplied."
-			$StatusLabel.Text = ""
-			return $false
-		}				
-	} 
-	else
-	{
-		Write-host "Please install the Skype for Business Online Windows PowerShell Module" -ForegroundColor "Red"
-		Write-host "Located at: https://www.microsoft.com/en-us/download/details.aspx?id=39366" -ForegroundColor "Red"
-		$StatusLabel.Text = ""
-		return $false
 	}
-	
 }
 
-function CheckSkypeForBusinessOnlineInitial
-{	
-	#CHECK IF SESSIONS IS AVAILABLE
-	$PSSessions = Get-PSSession
-	$CurrentlyConnected = $false
-	if($PSSessions.count -gt 0)
+function DisconnectTeams
+{
+	Write-Host "RUNNING: Disconnect-MicrosoftTeams" -foreground "Green"
+	$disconnectResult = Disconnect-MicrosoftTeams
+	Write-Host "RUNNING: Remove-Module MicrosoftTeams" -foreground "Green"
+	Remove-Module MicrosoftTeams
+	
+	Write-Host "RUNNING: Get-Module -ListAvailable -Name MicrosoftTeams" -foreground "Green"
+	$result = Invoke-Expression "Get-Module -ListAvailable -Name MicrosoftTeams"
+	if($result -ne $null)
 	{
-		foreach($PSSession in $PSSessions)
-		{
-			if($PSSession.Availability -eq "Available" -and $PSSession.ComputerName -match "lync.com$" )
-			{
-				$CurrentlyConnected = $true
-				$Script:UserConnectedToSfBOnline = $true
-				$AvailableFound = $true
-			}
-			elseif($PSSession.Availability -eq "None" -and $PSSession.ComputerName -match "lync.com$")
-			{
-				#REMOVE THE MODULE AS IT CAUSES ISSUES
-				$NoneFound = $true
-			}
-			else
-			{
-				#THIS SESSION IS NOT CONNECTED. IGNORE.
-			}
-		}
-		
-		if(!$AvailableFound -and $NoneFound) #No available skypeonline sessions available and old session still exists. Kill it.
-		{
-			$modules = Get-Module
-				
-			foreach($module in $modules)
-			{
-				if($module.name -match "tmp_")
-				{
-					Write-Host "INFO: Found stale module: " $module.name -foreground "green"
-					Write-Host "RUNNING: Remove module " $module.name -foreground "green"
-					Remove-Module -name $module.name
-				}
-			}
-			#Force the dialog for the user to decide if they want to re-connect or not
-			$CurrentlyConnected = $false
-			$Script:UserConnectedToSfBOnline = $true
-		}
+		Write-Host "MicrosoftTeams has been removed successfully" -foreground "Green"
+	}
+	else
+	{
+		Write-Host "ERROR: MicrosoftTeams was not removed." -foreground "red"
 	}
 	
+	$ConnectOnlineButton.Text = "Connect Teams"
+	DisableAllButtons
+}
+
+
+
+function CheckTeamsOnlineInitial
+{	
 	#CHECK IF COMMANDS ARE AVAILABLE		
 	$command = "Get-CsOnlineUser"
-	if($CurrentlyConnected -and (Get-Command $command -errorAction SilentlyContinue) -and ($Script:UserConnectedToSfBOnline -eq $true))
+	#if($CurrentlyConnected -and (Get-Command $command -errorAction SilentlyContinue) -and ($Script:UserConnectedToTeamsOnline -eq $true))
+	if((Get-Command $command -errorAction SilentlyContinue))
 	{
-		#CHECK THAT SfB ONLINE COMMANDS WORK
-		if(([array] (Get-CsOnlineUser -ResultSize 1 -ErrorAction SilentlyContinue)).count -gt 0)
+		$isConnected = $false
+		try{
+			(Get-CsOnlineUser -ResultSize 1 -ErrorAction SilentlyContinue) 2> $null
+			$isConnected = $true
+		}
+		catch
 		{
-			#Write-Host "Connected to Skype for Business Online" -foreground "Green"
+			#Write-Host "ERROR: " $_ -foreground "red"
+			$isConnected = $false
+		}
+		#CHECK THAT SfB ONLINE COMMANDS WORK
+		if($isConnected)
+		{
+			#Write-Host "Connected to Teams" -foreground "Green"
 			$ConnectedOnlineLabel.Visible = $true
-			$ConnectOnlineButton.Text = "Disconnect SfBO"
-			
+			$ConnectOnlineButton.Text = "Disconnect Teams"
+			$StatusLabel.Text = ""
+
 			Get-CsTenantDialPlan | select-object identity | ForEach-Object {[void] $policyDropDownBox.Items.Add(($_.identity).Replace("Tag:",""))}
 	
 			$numberOfItems = $policyDropDownBox.Items.count
@@ -1089,362 +1122,59 @@ function CheckSkypeForBusinessOnlineInitial
 				if($currentIndex -lt $dgv.Rows.Count)
 				{$dgv.Rows[$currentIndex].Selected = $True}
 			}
+			
+			EnableAllButtons
+			
+			return $true
 		}
 		else
 		{
-			Write-Host "INFO: Cannot access O365" -foreground "Yellow"
+			Write-Host "INFO: Cannot access Teams. Please use the Connect Teams button." -foreground "Yellow"
 			$ConnectedOnlineLabel.Visible = $false
-			$ConnectOnlineButton.Text = "Connect SfBO"
-			#$NoUsagesWarningLabel.Text = "Press the `"Connect SfBO`" button to get started."
+			$ConnectOnlineButton.Text = "Connect Teams"
+			$StatusLabel.Text = "Press the `"Connect Teams`" button to get started."
 			
 			DisableAllButtons
-			
-			[System.Windows.Forms.DialogResult] $result = [System.Windows.Forms.MessageBox]::Show("The SfBOnline connection has been disconnected. Click OK to reconnect.", "SfB Online Connection", [System.Windows.Forms.MessageBoxButtons]::OKCancel, [System.Windows.Forms.MessageBoxIcon]::Warning)
-			if($result -eq [System.Windows.Forms.DialogResult]::OK)
-			{
-				Write-Host "INFO: Re-establishing connection" -foreground "yellow"
-				$ConnectOnlineButton.Enabled = $false
-	
-				$ConnectResult = ConnectSkypeForBusinessOnline
-				if($ConnectResult)
-				{
-					$ConnectedOnlineLabel.Visible = $true
-					$ConnectOnlineButton.Text = "Disconnect SfBO"
-				}
-				else
-				{
-					$ConnectedOnlineLabel.Visible = $false
-					$ConnectOnlineButton.Text = "Connect SfBO"
-					#$NoUsagesWarningLabel.Text = "Press the `"Connect SfBO`" button to get started."
-					$CurrentlyConnected = $false
-					$Script:UserConnectedToSfBOnline = $false
-					Write-Host "ERROR: Failed to connect to Skype for Business Online..." -foreground "red"
-					$StatusLabel.Text = "ERROR: Connection failed."
-					
-					return $false
-				}
-				
-				$ConnectOnlineButton.Enabled = $true
-			}
-			elseif($result -eq [System.Windows.Forms.DialogResult]::Cancel)
-			{
-				Write-Host "INFO: Disconnecting from O365" -foreground "yellow"
-				
-				DisconnectSkypeForBusinessOnline
-				
-				$ConnectOnlineButton.Enabled = $false
-				$ConnectedOnlineLabel.Visible = $false
-				$ConnectOnlineButton.Text = "Connect SfBO"
-				#$NoUsagesWarningLabel.Text = "Press the `"Connect SfBO`" button to get started."
-				$CurrentlyConnected = $false
-				$Script:UserConnectedToSfBOnline = $false
-				
-				$ConnectOnlineButton.Enabled = $true
-				$Script:O365Creds = $null #CANCELLING SO DELETE CREDS
-							
-			}
-		
 		}
 	}
-	elseif(($CurrentlyConnected -eq $false) -and ($Script:UserConnectedToSfBOnline -eq $true)) #User has connected to SfBOnline but SfBOnline is reporting being disconnected. Ask if they want to reconnect.
-	{
-		Write-Host "INFO: Not Connected to Skype for Business Online" -foreground "Yellow"
-		$ConnectedOnlineLabel.Visible = $false
-		$ConnectOnlineButton.Text = "Connect SfBO"
-		#$NoUsagesWarningLabel.Text = "Press the `"Connect SfBO`" button to get started."
-		
-		DisableAllButtons
-		
-		[System.Windows.Forms.DialogResult] $result = [System.Windows.Forms.MessageBox]::Show("The SfBOnline connection has been disconnected. Click OK to reconnect.", "SfB Online Connection", [System.Windows.Forms.MessageBoxButtons]::OKCancel, [System.Windows.Forms.MessageBoxIcon]::Warning)
-		if($result -eq [System.Windows.Forms.DialogResult]::OK)
-		{
-			Write-Host "INFO: Re-establishing connection" -foreground "yellow"
-			$ConnectOnlineButton.Enabled = $false
-	
-			$ConnectResult = ConnectSkypeForBusinessOnline
-			if($ConnectResult)
-			{
-				$ConnectedOnlineLabel.Visible = $true
-				$ConnectOnlineButton.Text = "Disconnect SfBO"
-			}
-			else
-			{
-				$ConnectedOnlineLabel.Visible = $false
-				$ConnectOnlineButton.Text = "Connect SfBO"
-				#$NoUsagesWarningLabel.Text = "Press the `"Connect SfBO`" button to get started."
-				$CurrentlyConnected = $false
-				$Script:UserConnectedToSfBOnline = $false
-				Write-Host "ERROR: Failed to connect to Skype for Business Online..." -foreground "red"
-				$StatusLabel.Text = "ERROR: Connection failed."
-				
-				return $false
-				
-			}
-			
-			$ConnectOnlineButton.Enabled = $true
-						
-		}
-		elseif($result -eq [System.Windows.Forms.DialogResult]::Cancel)
-		{
-			Write-Host "INFO: Disconnecting from O365" -foreground "yellow"
-			
-			DisconnectSkypeForBusinessOnline
-			
-			$ConnectOnlineButton.Enabled = $false
-			$ConnectedOnlineLabel.Visible = $false
-			$ConnectOnlineButton.Text = "Connect SfBO"
-			#$NoUsagesWarningLabel.Text = "Press the `"Connect SfBO`" button to get started."
-			$CurrentlyConnected = $false
-			$Script:UserConnectedToSfBOnline = $false
-			
-			$ConnectOnlineButton.Enabled = $true
-			$Script:O365Creds = $null #CANCELLING SO DELETE CREDS
-						
-		}
-	}
-	elseif(!$CurrentlyConnected) 
-	{
-		Write-Host "INFO: Cannot access Skype for Business Online" -foreground "Yellow"
-		$ConnectedOnlineLabel.Visible = $false
-		$ConnectOnlineButton.Text = "Connect SfBO"
-		#$NoUsagesWarningLabel.Text = "Press the `"Connect SfBO`" button to get started."
-		$ConnectOnlineButton.Enabled = $true
-		
-		DisableAllButtons
-		
-		return $false
-	}
-	
-	return $true
 }
 
 
-function CheckSkypeForBusinessOnline
+function CheckTeamsOnline
 {	
-	#CHECK IF SESSIONS IS AVAILABLE
-	$PSSessions = Get-PSSession
-	$CurrentlyConnected = $false
-	if($PSSessions.count -gt 0)
-	{
-		foreach($PSSession in $PSSessions)
-		{
-			if($PSSession.Availability -eq "Available" -and $PSSession.ComputerName -match "lync.com$" )
-			{
-				$CurrentlyConnected = $true
-				$Script:UserConnectedToSfBOnline = $true
-				$AvailableFound = $true
-			}
-			elseif($PSSession.Availability -eq "None" -and $PSSession.ComputerName -match "lync.com$")
-			{
-				#REMOVE THE MODULE AS IT CAUSES ISSUES
-				$NoneFound = $true
-			}
-			else
-			{
-				#THIS SESSION IS NOT CONNECTED. IGNORE.
-			}
-		}
-		
-		if(!$AvailableFound -and $NoneFound) #No available skypeonline sessions available and old session still exists. Kill it.
-		{
-			$modules = Get-Module
-				
-			foreach($module in $modules)
-			{
-				if($module.name -match "tmp_")
-				{
-					Write-Host "INFO: Found stale module: " $module.name -foreground "green"
-					Write-Host "RUNNING: Remove module " $module.name -foreground "green"
-					Remove-Module -name $module.name
-				}
-			}
-			#Force the dialog for the user to decide if they want to re-connect or not
-			$CurrentlyConnected = $false
-			$Script:UserConnectedToSfBOnline = $true
-		}
-	}
 	
 	#CHECK IF COMMANDS ARE AVAILABLE		
-	$command = "Get-CsOnlineUser"
-	if($CurrentlyConnected -and (Get-Command $command -errorAction SilentlyContinue) -and ($Script:UserConnectedToSfBOnline -eq $true))
-	{
-		#CHECK THAT SfB ONLINE COMMANDS WORK
-		if(([array] (Get-CsOnlineUser -ResultSize 1 -ErrorAction SilentlyContinue)).count -gt 0)
-		{
-			$ConnectedOnlineLabel.Visible = $true
-			$ConnectOnlineButton.Text = "Disconnect SfBO"
-		}
-		else
-		{
-			Write-Host "INFO: Cannot access Skype for Business Online" -foreground "Yellow"
-			$ConnectedOnlineLabel.Visible = $false
-			$ConnectOnlineButton.Text = "Connect SfBO"
-			#$NoUsagesWarningLabel.Text = "Press the `"Connect SfBO`" button to get started."
-			
-			DisableAllButtons
-			
-			[System.Windows.Forms.DialogResult] $result = [System.Windows.Forms.MessageBox]::Show("The SfBOnline connection has been disconnected. Click OK to reconnect.", "SfB Online Connection", [System.Windows.Forms.MessageBoxButtons]::OKCancel, [System.Windows.Forms.MessageBoxIcon]::Warning)
-			if($result -eq [System.Windows.Forms.DialogResult]::OK)
-			{
-				Write-Host "INFO: Re-establishing connection" -foreground "yellow"
-				$ConnectOnlineButton.Enabled = $false
-	
-				$ConnectResult = ConnectSkypeForBusinessOnline
-				if($ConnectResult)
-				{
-					$ConnectedOnlineLabel.Visible = $true
-					$ConnectOnlineButton.Text = "Disconnect SfBO"
-				}
-				else
-				{
-					$ConnectedOnlineLabel.Visible = $false
-					$ConnectOnlineButton.Text = "Connect SfBO"
-					#$NoUsagesWarningLabel.Text = "Press the `"Connect SfBO`" button to get started."
-					$CurrentlyConnected = $false
-					$Script:UserConnectedToSfBOnline = $false
-					Write-Host "ERROR: Failed to connect to Skype for Business Online..." -foreground "red"
-					$StatusLabel.Text = "ERROR: Connection failed."
-
-					return $false
-				}
-				
-				$ConnectOnlineButton.Enabled = $true
-			}
-			elseif($result -eq [System.Windows.Forms.DialogResult]::Cancel)
-			{
-				Write-Host "INFO: Disconnecting from O365" -foreground "yellow"
-				
-				DisconnectSkypeForBusinessOnline
-				
-				$ConnectOnlineButton.Enabled = $false
-				$ConnectedOnlineLabel.Visible = $false
-				$ConnectOnlineButton.Text = "Connect SfBO"
-				#$NoUsagesWarningLabel.Text = "Press the `"Connect SfBO`" button to get started."
-				$CurrentlyConnected = $false
-				$Script:UserConnectedToSfBOnline = $false
-				
-				$ConnectOnlineButton.Enabled = $true
-							
-			}
-			
-		}
+	$isConnected = $false
+	try{
+		(Get-CsOnlineUser -ResultSize 1 -ErrorAction SilentlyContinue) 2> $null
+		$isConnected = $true
 	}
-	elseif(($CurrentlyConnected -eq $false) -and ($Script:UserConnectedToSfBOnline -eq $true)) #User has connected to SfBOnline but SfBOnline is reporting being disconnected. Ask if they want to reconnect.
+	catch
 	{
-		
-		Write-Host "INFO: Not Connected to Skype for Business Online" -foreground "Yellow"
-		$ConnectedOnlineLabel.Visible = $false
-		$ConnectOnlineButton.Text = "Connect SfBO"
-		#$NoUsagesWarningLabel.Text = "Press the `"Connect SfBO`" button to get started."
-		
-		DisableAllButtons
-		
-		[System.Windows.Forms.DialogResult] $result = [System.Windows.Forms.MessageBox]::Show("The SfBOnline connection has been disconnected. Click OK to reconnect.", "SfB Online Connection", [System.Windows.Forms.MessageBoxButtons]::OKCancel, [System.Windows.Forms.MessageBoxIcon]::Warning)
-		if($result -eq [System.Windows.Forms.DialogResult]::OK)
-		{
-			#Write-Host "YES"
-			Write-Host "INFO: Re-establishing connection" -foreground "yellow"
-			$ConnectOnlineButton.Enabled = $false
-	
-			$ConnectResult = ConnectSkypeForBusinessOnline
-			if($ConnectResult)
-			{
-				$ConnectedOnlineLabel.Visible = $true
-				$ConnectOnlineButton.Text = "Disconnect SfBO"
-			}
-			else
-			{
-				$ConnectedOnlineLabel.Visible = $false
-				$ConnectOnlineButton.Text = "Connect SfBO"
-				#$NoUsagesWarningLabel.Text = "Press the `"Connect SfBO`" button to get started."
-				$CurrentlyConnected = $false
-				$Script:UserConnectedToSfBOnline = $false
-				Write-Host "ERROR: Failed to connect to Skype for Business Online..." -foreground "red"
-				$StatusLabel.Text = "ERROR: Connection failed."
-
-				return $false
-				
-			}
-			
-			$ConnectOnlineButton.Enabled = $true
-						
-		}
-		elseif($result -eq [System.Windows.Forms.DialogResult]::Cancel)
-		{
-			Write-Host "INFO: Disconnecting from O365" -foreground "yellow"
-			
-			DisconnectSkypeForBusinessOnline
-			
-			$ConnectOnlineButton.Enabled = $false
-			$ConnectedOnlineLabel.Visible = $false
-			$ConnectOnlineButton.Text = "Connect SfBO"
-			#$NoUsagesWarningLabel.Text = "Press the `"Connect SfBO`" button to get started."
-			$CurrentlyConnected = $false
-			$Script:UserConnectedToSfBOnline = $false
-			
-			$ConnectOnlineButton.Enabled = $true
-						
-		}
+		#Write-Host "ERROR: " $_ -foreground "red"
+		$isConnected = $false
 	}
-	elseif(!$CurrentlyConnected) 
+	#CHECK THAT SfB ONLINE COMMANDS WORK
+	if($isConnected)
 	{
-		$ConnectedOnlineLabel.Visible = $false
-		$ConnectOnlineButton.Text = "Connect SfBO"
-		#$NoUsagesWarningLabel.Text = "Press the `"Connect SfBO`" button to get started."
-		$ConnectOnlineButton.Enabled = $true
+		$ConnectedOnlineLabel.Visible = $true
+		$ConnectOnlineButton.Text = "Disconnect Teams"
+		#$StatusLabel.Text = ""
+		return $true
 		
-		DisableAllButtons
-		
-		return $false
-	}
-	
-	return $true
-}
-
-function DisconnectSkypeForBusinessOnline
-{
-	$PSSessions = Get-PSSession
-	$CurrentlyConnected = $false
-	if($PSSessions.count -gt 0)
-	{
-		foreach($PSSession in $PSSessions)
-		{
-			if($PSSession.ComputerName -match "lync.com$" )
-			{
-				Write-Host "RUNNING: Remove-PSSession" $PSSession.Name -foreground "Green"
-				Remove-PSSession $PSSession
-			}
-		}
-	}
-	Write-Host "RUNNING: Remove-Module SkypeOnlineConnector" -foreground "Green"
-	Remove-Module SkypeOnlineConnector
-	
-	Write-Host "RUNNING: Get-Module -ListAvailable -Name SkypeOnlineConnector" -foreground "Green"
-	$result = Invoke-Expression "Get-Module -ListAvailable -Name SkypeOnlineConnector"
-	if($result -ne $null)
-	{
-		Write-Host "SkypeOnlineConnector has been removed successfully" -foreground "Green"
 	}
 	else
 	{
-		Write-Host "ERROR: SkypeOnlineConnector was not removed." -foreground "red"
+		Write-Host "INFO: Cannot access Teams. Please use the Connect Teams button." -foreground "Yellow"
+		$ConnectedOnlineLabel.Visible = $false
+		$ConnectOnlineButton.Text = "Connect Teams"
+		$StatusLabel.Text = "Press the `"Connect Teams`" button to get started."
+		
+		DisableAllButtons
 	}
-	
-	$modules = Get-Module
-	foreach($module in $modules)
-	{
-		if($module.name -match "tmp_")
-		{
-			Write-Host "INFO: Removing module: " $module.name -foreground "yellow"
-			Write-Host "RUNNING: Remove module " $module.name -foreground "green"
-			Remove-Module -name $module.name
-		}
-	}
-
-	#$Script:O365Creds = $null
-	
-	DisableAllButtons
 }
+
+
 
 function DisableAllButtons()
 {
@@ -1521,7 +1251,7 @@ function New-Policy([string]$Message, [string]$WindowTitle, [string]$DefaultText
 	$PoliciesDropDownBox.DropDownStyle = "DropDownList"
 	$PoliciesDropDownBox.Anchor = [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Bottom
 	
-	$checkResult = CheckSkypeForBusinessOnline
+	$checkResult = CheckTeamsOnline
 	if($checkResult)
 	{
 		Get-CsTenantDialPlan | select-object identity | ForEach-Object {[void] $PoliciesDropDownBox.Items.Add(($_.identity).Replace("Tag:",""))}
@@ -1614,7 +1344,7 @@ function New-Policy([string]$Message, [string]$WindowTitle, [string]$DefaultText
     $form.AcceptButton = $okButton
     $form.CancelButton = $cancelButton
     $form.ShowInTaskbar = $true
-	[byte[]]$WindowIcon = @(137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 32, 0, 0, 0, 32, 8, 6, 0, 0, 0, 115, 122, 122, 244, 0, 0, 0, 6, 98, 75, 71, 68, 0, 255, 0, 255, 0, 255, 160, 189, 167, 147, 0, 0, 0, 9, 112, 72, 89, 115, 0, 0, 11, 19, 0, 0, 11, 19, 1, 0, 154, 156, 24, 0, 0, 0, 7, 116, 73, 77, 69, 7, 225, 7, 26, 1, 36, 51, 211, 178, 227, 235, 0, 0, 5, 235, 73, 68, 65, 84, 88, 195, 197, 151, 91, 108, 92, 213, 21, 134, 191, 189, 207, 57, 115, 159, 216, 78, 176, 27, 98, 72, 226, 88, 110, 66, 66, 34, 185, 161, 168, 193, 73, 21, 17, 2, 2, 139, 75, 164, 182, 106, 145, 170, 190, 84, 74, 104, 65, 16, 144, 218, 138, 138, 244, 173, 69, 106, 101, 42, 129, 42, 149, 170, 162, 15, 168, 168, 151, 7, 4, 22, 180, 1, 41, 92, 172, 52, 196, 68, 105, 130, 19, 138, 98, 76, 154, 27, 174, 227, 248, 58, 247, 57, 103, 175, 62, 236, 241, 177, 199, 246, 140, 67, 26, 169, 251, 237, 236, 61, 179, 215, 191, 214, 191, 214, 191, 214, 86, 188, 62, 37, 252, 31, 151, 174, 123, 42, 224, 42, 72, 56, 138, 152, 99, 191, 175, 247, 114, 107, 29, 172, 75, 106, 94, 254, 74, 156, 109, 13, 58, 180, 155, 53, 240, 216, 64, 129, 63, 156, 43, 95, 55, 0, 106, 62, 5, 158, 134, 83, 59, 147, 116, 36, 106, 7, 103, 188, 44, 228, 13, 120, 202, 126, 151, 12, 100, 3, 225, 183, 231, 203, 60, 55, 88, 66, 4, 80, 215, 0, 96, 89, 68, 113, 97, 87, 138, 180, 3, 163, 101, 120, 116, 160, 192, 161, 81, 159, 203, 69, 33, 230, 40, 58, 27, 52, 251, 215, 69, 248, 198, 74, 183, 238, 165, 175, 141, 248, 60, 114, 178, 192, 165, 188, 44, 9, 100, 22, 128, 192, 127, 238, 73, 209, 18, 81, 252, 109, 52, 224, 222, 247, 179, 179, 46, 206, 93, 102, 142, 119, 193, 76, 216, 96, 247, 13, 46, 223, 189, 201, 101, 207, 74, 143, 148, 99, 183, 159, 250, 184, 72, 207, 96, 169, 46, 136, 16, 192, 183, 91, 61, 94, 233, 140, 241, 81, 198, 176, 229, 173, 204, 226, 198, 175, 102, 5, 194, 243, 157, 113, 246, 221, 236, 225, 42, 232, 29, 9, 184, 255, 104, 174, 62, 0, 165, 192, 239, 78, 163, 129, 174, 195, 57, 14, 143, 5, 255, 115, 114, 197, 29, 197, 200, 221, 41, 82, 14, 188, 63, 30, 240, 245, 190, 220, 162, 145, 208, 0, 141, 174, 66, 1, 37, 129, 195, 163, 254, 34, 40, 1, 191, 70, 25, 250, 50, 75, 197, 156, 149, 15, 132, 27, 254, 62, 205, 229, 178, 176, 163, 201, 161, 103, 115, 172, 182, 14, 196, 181, 53, 114, 38, 107, 64, 22, 194, 92, 147, 80, 200, 67, 105, 50, 247, 165, 171, 156, 104, 141, 105, 70, 186, 211, 200, 131, 105, 214, 46, 82, 53, 69, 3, 119, 244, 217, 240, 63, 177, 214, 35, 233, 170, 250, 66, 164, 20, 11, 221, 52, 240, 171, 77, 49, 114, 6, 198, 74, 18, 158, 106, 5, 239, 110, 79, 208, 236, 41, 254, 93, 16, 206, 102, 204, 162, 30, 14, 78, 27, 158, 60, 93, 68, 1, 7, 191, 150, 176, 73, 60, 31, 64, 182, 178, 185, 49, 169, 103, 80, 132, 235, 166, 164, 38, 238, 64, 66, 67, 104, 94, 224, 229, 206, 56, 111, 93, 182, 116, 61, 246, 81, 177, 118, 166, 107, 248, 253, 121, 43, 92, 119, 52, 106, 86, 39, 245, 66, 0, 147, 101, 9, 105, 188, 171, 165, 186, 198, 127, 179, 57, 202, 233, 233, 106, 216, 9, 79, 113, 169, 96, 216, 119, 179, 135, 47, 112, 240, 114, 185, 110, 169, 77, 149, 132, 95, 159, 181, 32, 182, 54, 58, 139, 83, 112, 231, 7, 121, 0, 126, 210, 17, 129, 96, 150, 134, 213, 9, 205, 84, 185, 42, 29, 121, 103, 91, 130, 15, 38, 45, 228, 105, 95, 40, 207, 97, 173, 209, 83, 124, 179, 213, 227, 153, 13, 81, 16, 91, 205, 247, 174, 116, 113, 42, 118, 31, 89, 227, 86, 37, 109, 8, 224, 189, 97, 159, 178, 64, 71, 82, 207, 166, 129, 192, 75, 231, 203, 180, 68, 170, 235, 252, 95, 57, 195, 150, 138, 218, 156, 43, 8, 70, 102, 43, 98, 96, 103, 146, 63, 119, 198, 120, 115, 216, 210, 243, 179, 245, 81, 222, 248, 106, 156, 141, 73, 77, 201, 192, 109, 141, 14, 86, 171, 231, 39, 161, 99, 209, 158, 43, 152, 48, 156, 237, 41, 205, 123, 163, 1, 174, 99, 55, 38, 3, 225, 209, 142, 40, 7, 78, 23, 217, 182, 220, 2, 120, 247, 202, 172, 59, 27, 155, 28, 90, 163, 138, 76, 32, 28, 159, 12, 192, 23, 30, 110, 181, 148, 238, 63, 85, 64, 128, 166, 121, 149, 160, 23, 118, 96, 21, 122, 255, 226, 150, 40, 103, 178, 134, 132, 182, 123, 167, 50, 134, 95, 222, 18, 229, 108, 198, 112, 99, 212, 238, 29, 155, 156, 5, 240, 253, 53, 54, 84, 127, 25, 246, 9, 4, 214, 175, 112, 104, 139, 107, 46, 20, 132, 129, 41, 179, 196, 60, 96, 108, 228, 155, 61, 107, 60, 237, 41, 140, 82, 100, 138, 66, 186, 146, 151, 67, 89, 195, 119, 142, 231, 65, 36, 212, 251, 209, 188, 132, 212, 116, 85, 18, 236, 233, 143, 139, 0, 252, 174, 34, 62, 71, 39, 131, 80, 107, 138, 82, 11, 128, 182, 213, 176, 33, 169, 33, 128, 159, 174, 143, 176, 231, 104, 30, 20, 172, 170, 120, 187, 111, 181, 199, 171, 151, 124, 80, 48, 94, 17, 204, 111, 173, 246, 160, 44, 188, 182, 45, 73, 103, 131, 189, 110, 120, 218, 240, 192, 74, 151, 29, 77, 22, 80, 207, 80, 137, 6, 79, 227, 42, 136, 42, 112, 230, 244, 153, 16, 128, 18, 155, 193, 0, 127, 237, 74, 48, 81, 18, 50, 190, 128, 8, 55, 198, 236, 207, 186, 251, 243, 161, 10, 205, 112, 255, 189, 85, 46, 178, 103, 25, 61, 67, 37, 222, 24, 177, 168, 142, 237, 74, 209, 28, 213, 76, 248, 66, 206, 192, 67, 95, 242, 56, 240, 229, 8, 253, 21, 26, 126, 176, 54, 178, 112, 34, 18, 5, 63, 255, 180, 196, 211, 237, 17, 20, 240, 236, 39, 37, 11, 79, 89, 158, 247, 159, 242, 57, 50, 211, 164, 20, 60, 126, 178, 64, 68, 131, 163, 96, 239, 201, 2, 34, 112, 100, 220, 231, 135, 107, 35, 188, 114, 209, 103, 119, 179, 67, 163, 171, 24, 200, 24, 122, 134, 138, 124, 158, 23, 86, 197, 53, 23, 239, 74, 242, 112, 171, 199, 243, 131, 69, 112, 212, 188, 137, 40, 0, 121, 48, 109, 109, 244, 102, 174, 105, 8, 92, 151, 208, 244, 109, 79, 112, 177, 32, 220, 182, 76, 115, 123, 95, 142, 254, 137, 32, 188, 127, 172, 59, 133, 163, 160, 225, 245, 105, 112, 213, 188, 42, 112, 224, 197, 138, 108, 158, 216, 153, 248, 226, 61, 88, 224, 79, 91, 227, 180, 189, 157, 97, 115, 74, 115, 104, 44, 160, 127, 78, 153, 162, 160, 28, 64, 84, 171, 218, 101, 184, 247, 159, 5, 174, 248, 176, 37, 165, 121, 118, 83, 244, 11, 5, 161, 179, 209, 225, 76, 222, 240, 194, 230, 24, 142, 134, 61, 253, 121, 112, 170, 69, 172, 33, 162, 24, 47, 75, 157, 177, 92, 65, 87, 95, 22, 128, 31, 183, 69, 56, 176, 33, 90, 37, 205, 245, 214, 241, 241, 128, 67, 35, 1, 39, 38, 13, 94, 239, 52, 147, 229, 234, 255, 221, 211, 234, 17, 85, 208, 119, 37, 176, 237, 116, 177, 169, 120, 38, 148, 91, 151, 59, 124, 216, 149, 168, 12, 153, 1, 123, 79, 228, 25, 206, 203, 82, 47, 137, 186, 244, 100, 187, 211, 36, 52, 220, 255, 97, 158, 222, 138, 84, 235, 26, 131, 26, 199, 198, 3, 154, 14, 102, 152, 240, 133, 7, 90, 28, 62, 223, 157, 226, 165, 173, 113, 86, 120, 138, 168, 14, 29, 176, 169, 163, 150, 54, 254, 199, 219, 227, 36, 52, 156, 206, 25, 122, 47, 148, 107, 191, 11, 22, 72, 165, 130, 95, 108, 140, 241, 163, 54, 111, 230, 46, 138, 6, 2, 17, 130, 202, 212, 173, 21, 228, 12, 220, 249, 143, 28, 3, 19, 166, 170, 53, 183, 196, 20, 71, 182, 39, 105, 139, 219, 205, 230, 131, 25, 70, 75, 114, 245, 0, 102, 100, 122, 69, 76, 177, 171, 217, 229, 153, 142, 8, 183, 166, 106, 243, 112, 46, 47, 97, 146, 165, 92, 104, 175, 140, 106, 99, 62, 108, 122, 39, 195, 112, 65, 234, 191, 140, 150, 10, 37, 70, 64, 43, 54, 164, 53, 77, 17, 133, 8, 92, 42, 26, 118, 44, 119, 121, 170, 61, 66, 103, 186, 26, 220, 80, 78, 120, 238, 179, 18, 47, 12, 150, 170, 43, 226, 154, 0, 92, 197, 155, 0, 20, 237, 203, 172, 238, 127, 50, 101, 108, 239, 175, 147, 36, 238, 117, 125, 234, 86, 12, 125, 58, 51, 100, 106, 150, 124, 36, 254, 23, 153, 41, 93, 205, 81, 212, 105, 60, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130)
+	[byte[]]$WindowIcon = @(71, 73, 70, 56, 57, 97, 32, 0, 32, 0, 231, 137, 0, 0, 52, 93, 0, 52, 94, 0, 52, 95, 0, 53, 93, 0, 53, 94, 0, 53, 95, 0,53, 96, 0, 54, 94, 0, 54, 95, 0, 54, 96, 2, 54, 95, 0, 55, 95, 1, 55, 96, 1, 55, 97, 6, 55, 96, 3, 56, 98, 7, 55, 96, 8, 55, 97, 9, 56, 102, 15, 57, 98, 17, 58, 98, 27, 61, 99, 27, 61, 100, 24, 61, 116, 32, 63, 100, 36, 65, 102, 37, 66, 103, 41, 68, 104, 48, 72, 106, 52, 75, 108, 55, 77, 108, 57, 78, 109, 58, 79, 111, 59, 79, 110, 64, 83, 114, 65, 83, 114, 68, 85, 116, 69, 86, 117, 71, 88, 116, 75, 91, 120, 81, 95, 123, 86, 99, 126, 88, 101, 125, 89, 102, 126, 90, 103, 129, 92, 103, 130, 95, 107, 132, 97, 108, 132, 99, 110, 134, 100, 111, 135, 102, 113, 136, 104, 114, 137, 106, 116, 137, 106,116, 139, 107, 116, 139, 110, 119, 139, 112, 121, 143, 116, 124, 145, 120, 128, 147, 121, 129, 148, 124, 132, 150, 125,133, 151, 126, 134, 152, 127, 134, 152, 128, 135, 152, 130, 137, 154, 131, 138, 155, 133, 140, 157, 134, 141, 158, 135,141, 158, 140, 146, 161, 143, 149, 164, 147, 152, 167, 148, 153, 168, 151, 156, 171, 153, 158, 172, 153, 158, 173, 156,160, 174, 156, 161, 174, 158, 163, 176, 159, 163, 176, 160, 165, 177, 163, 167, 180, 166, 170, 182, 170, 174, 186, 171,175, 186, 173, 176, 187, 173, 177, 187, 174, 178, 189, 176, 180, 190, 177, 181, 191, 179, 182, 192, 180, 183, 193, 182,185, 196, 185, 188, 197, 188, 191, 200, 190, 193, 201, 193, 195, 203, 193, 196, 204, 196, 198, 206, 196, 199, 207, 197,200, 207, 197, 200, 208, 198, 200, 208, 199, 201, 208, 199, 201, 209, 200, 202, 209, 200, 202, 210, 202, 204, 212, 204,206, 214, 206, 208, 215, 206, 208, 216, 208, 210, 218, 209, 210, 217, 209, 210, 220, 209, 211, 218, 210, 211, 219, 210,211, 220, 210, 212, 219, 211, 212, 219, 211, 212, 220, 212, 213, 221, 214, 215, 223, 215, 216, 223, 215, 216, 224, 216,217, 224, 217, 218, 225, 218, 219, 226, 218, 220, 226, 219, 220, 226, 219, 220, 227, 220, 221, 227, 221, 223, 228, 224,225, 231, 228, 229, 234, 230, 231, 235, 251, 251, 252, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,255, 255, 255, 255, 255, 255, 255, 255, 33, 254, 17, 67, 114, 101, 97, 116, 101, 100, 32, 119, 105, 116, 104, 32, 71, 73, 77, 80, 0, 33, 249, 4, 1, 10, 0, 255, 0, 44, 0, 0, 0, 0, 32, 0, 32, 0, 0, 8, 254, 0, 255, 29, 24, 72, 176, 160, 193, 131, 8, 25, 60, 16, 120, 192, 195, 10, 132, 16, 35, 170, 248, 112, 160, 193, 64, 30, 135, 4, 68, 220, 72, 16, 128, 33, 32, 7, 22, 92, 68, 84, 132, 35, 71, 33, 136, 64, 18, 228, 81, 135, 206, 0, 147, 16, 7, 192, 145, 163, 242, 226, 26, 52, 53, 96, 34, 148, 161, 230, 76, 205, 3, 60, 214, 204, 72, 163, 243, 160, 25, 27, 62, 11, 6, 61, 96, 231, 68, 81, 130, 38, 240, 28, 72, 186, 114, 205, 129, 33, 94, 158, 14, 236, 66, 100, 234, 207, 165, 14, 254, 108, 120, 170, 193, 15, 4, 175, 74, 173, 30, 120, 50, 229, 169, 20, 40, 3, 169, 218, 28, 152, 33, 80, 2, 157, 6, 252, 100, 136, 251, 85, 237, 1, 46, 71,116, 26, 225, 66, 80, 46, 80, 191, 37, 244, 0, 48, 57, 32, 15, 137, 194, 125, 11, 150, 201, 97, 18, 7, 153, 130, 134, 151, 18, 140, 209, 198, 36, 27, 24, 152, 35, 23, 188, 147, 98, 35, 138, 56, 6, 51, 251, 29, 24, 4, 204, 198, 47, 63, 82, 139, 38, 168, 64, 80, 7, 136, 28, 250, 32, 144, 157, 246, 96, 19, 43, 16, 169, 44, 57, 168, 250, 32, 6, 66, 19, 14, 70, 248, 99, 129, 248, 236, 130, 90, 148, 28, 76, 130, 5, 97, 241, 131, 35, 254, 4, 40, 8, 128, 15, 8, 235, 207, 11, 88, 142, 233, 81, 112, 71, 24, 136, 215, 15, 190, 152, 67, 128, 224, 27, 22, 232, 195, 23, 180, 227, 98, 96, 11, 55, 17, 211, 31, 244, 49, 102, 160, 24, 29, 249, 201, 71, 80, 1, 131, 136, 16, 194, 30, 237, 197, 215, 91, 68, 76, 108, 145, 5, 18, 27, 233, 119, 80, 5, 133, 0, 66, 65, 132, 32, 73, 48, 16, 13, 87, 112, 20, 133, 19, 28, 85, 113, 195, 1, 23, 48, 164, 85, 68, 18, 148, 24, 16, 0, 59)
 	$ico = New-Object IO.MemoryStream($WindowIcon, 0, $WindowIcon.Length)
 	$form.Icon = [System.Drawing.Icon]::FromHandle((new-object System.Drawing.Bitmap -argument $ico).GetHIcon())
      
@@ -1674,7 +1404,7 @@ function Edit-Policy([string]$Message, [string]$WindowTitle, [string]$PolicyName
 	$PoliciesDropDownBox.DropDownStyle = "DropDownList"
 	$PoliciesDropDownBox.Anchor = [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Bottom
 	
-	$checkResult = CheckSkypeForBusinessOnline
+	$checkResult = CheckTeamsOnline
 	if($checkResult)
 	{
 		Get-CsTenantDialPlan | Select-Object identity | ForEach-Object {[void] $PoliciesDropDownBox.Items.Add(($_.identity).Replace("Tag:",""))}
@@ -1720,7 +1450,7 @@ function Edit-Policy([string]$Message, [string]$WindowTitle, [string]$PolicyName
 	$AccessPrefixTextBox.Text = ""
 	$AccessPrefixTextBox.tabIndex = 3
 	
-	$checkResult = CheckSkypeForBusinessOnline
+	$checkResult = CheckTeamsOnline
 	if($checkResult)
 	{
 		Get-CsTenantDialPlan -identity $PolicyName | ForEach-Object {$AccessPrefixTextBox.Text = $_.ExternalAccessPrefix; $Optimized = $_.OptimizeDeviceDialing; $OptimizeDeviceDialingLabel.Text = "OptimizeDeviceDialing: $Optimized"}
@@ -1773,7 +1503,7 @@ function Edit-Policy([string]$Message, [string]$WindowTitle, [string]$PolicyName
     $form.AcceptButton = $okButton
     $form.CancelButton = $cancelButton
     $form.ShowInTaskbar = $true
-	[byte[]]$WindowIcon = @(137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 32, 0, 0, 0, 32, 8, 6, 0, 0, 0, 115, 122, 122, 244, 0, 0, 0, 6, 98, 75, 71, 68, 0, 255, 0, 255, 0, 255, 160, 189, 167, 147, 0, 0, 0, 9, 112, 72, 89, 115, 0, 0, 11, 19, 0, 0, 11, 19, 1, 0, 154, 156, 24, 0, 0, 0, 7, 116, 73, 77, 69, 7, 225, 7, 26, 1, 36, 51, 211, 178, 227, 235, 0, 0, 5, 235, 73, 68, 65, 84, 88, 195, 197, 151, 91, 108, 92, 213, 21, 134, 191, 189, 207, 57, 115, 159, 216, 78, 176, 27, 98, 72, 226, 88, 110, 66, 66, 34, 185, 161, 168, 193, 73, 21, 17, 2, 2, 139, 75, 164, 182, 106, 145, 170, 190, 84, 74, 104, 65, 16, 144, 218, 138, 138, 244, 173, 69, 106, 101, 42, 129, 42, 149, 170, 162, 15, 168, 168, 151, 7, 4, 22, 180, 1, 41, 92, 172, 52, 196, 68, 105, 130, 19, 138, 98, 76, 154, 27, 174, 227, 248, 58, 247, 57, 103, 175, 62, 236, 241, 177, 199, 246, 140, 67, 26, 169, 251, 237, 236, 61, 179, 215, 191, 214, 191, 214, 191, 214, 86, 188, 62, 37, 252, 31, 151, 174, 123, 42, 224, 42, 72, 56, 138, 152, 99, 191, 175, 247, 114, 107, 29, 172, 75, 106, 94, 254, 74, 156, 109, 13, 58, 180, 155, 53, 240, 216, 64, 129, 63, 156, 43, 95, 55, 0, 106, 62, 5, 158, 134, 83, 59, 147, 116, 36, 106, 7, 103, 188, 44, 228, 13, 120, 202, 126, 151, 12, 100, 3, 225, 183, 231, 203, 60, 55, 88, 66, 4, 80, 215, 0, 96, 89, 68, 113, 97, 87, 138, 180, 3, 163, 101, 120, 116, 160, 192, 161, 81, 159, 203, 69, 33, 230, 40, 58, 27, 52, 251, 215, 69, 248, 198, 74, 183, 238, 165, 175, 141, 248, 60, 114, 178, 192, 165, 188, 44, 9, 100, 22, 128, 192, 127, 238, 73, 209, 18, 81, 252, 109, 52, 224, 222, 247, 179, 179, 46, 206, 93, 102, 142, 119, 193, 76, 216, 96, 247, 13, 46, 223, 189, 201, 101, 207, 74, 143, 148, 99, 183, 159, 250, 184, 72, 207, 96, 169, 46, 136, 16, 192, 183, 91, 61, 94, 233, 140, 241, 81, 198, 176, 229, 173, 204, 226, 198, 175, 102, 5, 194, 243, 157, 113, 246, 221, 236, 225, 42, 232, 29, 9, 184, 255, 104, 174, 62, 0, 165, 192, 239, 78, 163, 129, 174, 195, 57, 14, 143, 5, 255, 115, 114, 197, 29, 197, 200, 221, 41, 82, 14, 188, 63, 30, 240, 245, 190, 220, 162, 145, 208, 0, 141, 174, 66, 1, 37, 129, 195, 163, 254, 34, 40, 1, 191, 70, 25, 250, 50, 75, 197, 156, 149, 15, 132, 27, 254, 62, 205, 229, 178, 176, 163, 201, 161, 103, 115, 172, 182, 14, 196, 181, 53, 114, 38, 107, 64, 22, 194, 92, 147, 80, 200, 67, 105, 50, 247, 165, 171, 156, 104, 141, 105, 70, 186, 211, 200, 131, 105, 214, 46, 82, 53, 69, 3, 119, 244, 217, 240, 63, 177, 214, 35, 233, 170, 250, 66, 164, 20, 11, 221, 52, 240, 171, 77, 49, 114, 6, 198, 74, 18, 158, 106, 5, 239, 110, 79, 208, 236, 41, 254, 93, 16, 206, 102, 204, 162, 30, 14, 78, 27, 158, 60, 93, 68, 1, 7, 191, 150, 176, 73, 60, 31, 64, 182, 178, 185, 49, 169, 103, 80, 132, 235, 166, 164, 38, 238, 64, 66, 67, 104, 94, 224, 229, 206, 56, 111, 93, 182, 116, 61, 246, 81, 177, 118, 166, 107, 248, 253, 121, 43, 92, 119, 52, 106, 86, 39, 245, 66, 0, 147, 101, 9, 105, 188, 171, 165, 186, 198, 127, 179, 57, 202, 233, 233, 106, 216, 9, 79, 113, 169, 96, 216, 119, 179, 135, 47, 112, 240, 114, 185, 110, 169, 77, 149, 132, 95, 159, 181, 32, 182, 54, 58, 139, 83, 112, 231, 7, 121, 0, 126, 210, 17, 129, 96, 150, 134, 213, 9, 205, 84, 185, 42, 29, 121, 103, 91, 130, 15, 38, 45, 228, 105, 95, 40, 207, 97, 173, 209, 83, 124, 179, 213, 227, 153, 13, 81, 16, 91, 205, 247, 174, 116, 113, 42, 118, 31, 89, 227, 86, 37, 109, 8, 224, 189, 97, 159, 178, 64, 71, 82, 207, 166, 129, 192, 75, 231, 203, 180, 68, 170, 235, 252, 95, 57, 195, 150, 138, 218, 156, 43, 8, 70, 102, 43, 98, 96, 103, 146, 63, 119, 198, 120, 115, 216, 210, 243, 179, 245, 81, 222, 248, 106, 156, 141, 73, 77, 201, 192, 109, 141, 14, 86, 171, 231, 39, 161, 99, 209, 158, 43, 152, 48, 156, 237, 41, 205, 123, 163, 1, 174, 99, 55, 38, 3, 225, 209, 142, 40, 7, 78, 23, 217, 182, 220, 2, 120, 247, 202, 172, 59, 27, 155, 28, 90, 163, 138, 76, 32, 28, 159, 12, 192, 23, 30, 110, 181, 148, 238, 63, 85, 64, 128, 166, 121, 149, 160, 23, 118, 96, 21, 122, 255, 226, 150, 40, 103, 178, 134, 132, 182, 123, 167, 50, 134, 95, 222, 18, 229, 108, 198, 112, 99, 212, 238, 29, 155, 156, 5, 240, 253, 53, 54, 84, 127, 25, 246, 9, 4, 214, 175, 112, 104, 139, 107, 46, 20, 132, 129, 41, 179, 196, 60, 96, 108, 228, 155, 61, 107, 60, 237, 41, 140, 82, 100, 138, 66, 186, 146, 151, 67, 89, 195, 119, 142, 231, 65, 36, 212, 251, 209, 188, 132, 212, 116, 85, 18, 236, 233, 143, 139, 0, 252, 174, 34, 62, 71, 39, 131, 80, 107, 138, 82, 11, 128, 182, 213, 176, 33, 169, 33, 128, 159, 174, 143, 176, 231, 104, 30, 20, 172, 170, 120, 187, 111, 181, 199, 171, 151, 124, 80, 48, 94, 17, 204, 111, 173, 246, 160, 44, 188, 182, 45, 73, 103, 131, 189, 110, 120, 218, 240, 192, 74, 151, 29, 77, 22, 80, 207, 80, 137, 6, 79, 227, 42, 136, 42, 112, 230, 244, 153, 16, 128, 18, 155, 193, 0, 127, 237, 74, 48, 81, 18, 50, 190, 128, 8, 55, 198, 236, 207, 186, 251, 243, 161, 10, 205, 112, 255, 189, 85, 46, 178, 103, 25, 61, 67, 37, 222, 24, 177, 168, 142, 237, 74, 209, 28, 213, 76, 248, 66, 206, 192, 67, 95, 242, 56, 240, 229, 8, 253, 21, 26, 126, 176, 54, 178, 112, 34, 18, 5, 63, 255, 180, 196, 211, 237, 17, 20, 240, 236, 39, 37, 11, 79, 89, 158, 247, 159, 242, 57, 50, 211, 164, 20, 60, 126, 178, 64, 68, 131, 163, 96, 239, 201, 2, 34, 112, 100, 220, 231, 135, 107, 35, 188, 114, 209, 103, 119, 179, 67, 163, 171, 24, 200, 24, 122, 134, 138, 124, 158, 23, 86, 197, 53, 23, 239, 74, 242, 112, 171, 199, 243, 131, 69, 112, 212, 188, 137, 40, 0, 121, 48, 109, 109, 244, 102, 174, 105, 8, 92, 151, 208, 244, 109, 79, 112, 177, 32, 220, 182, 76, 115, 123, 95, 142, 254, 137, 32, 188, 127, 172, 59, 133, 163, 160, 225, 245, 105, 112, 213, 188, 42, 112, 224, 197, 138, 108, 158, 216, 153, 248, 226, 61, 88, 224, 79, 91, 227, 180, 189, 157, 97, 115, 74, 115, 104, 44, 160, 127, 78, 153, 162, 160, 28, 64, 84, 171, 218, 101, 184, 247, 159, 5, 174, 248, 176, 37, 165, 121, 118, 83, 244, 11, 5, 161, 179, 209, 225, 76, 222, 240, 194, 230, 24, 142, 134, 61, 253, 121, 112, 170, 69, 172, 33, 162, 24, 47, 75, 157, 177, 92, 65, 87, 95, 22, 128, 31, 183, 69, 56, 176, 33, 90, 37, 205, 245, 214, 241, 241, 128, 67, 35, 1, 39, 38, 13, 94, 239, 52, 147, 229, 234, 255, 221, 211, 234, 17, 85, 208, 119, 37, 176, 237, 116, 177, 169, 120, 38, 148, 91, 151, 59, 124, 216, 149, 168, 12, 153, 1, 123, 79, 228, 25, 206, 203, 82, 47, 137, 186, 244, 100, 187, 211, 36, 52, 220, 255, 97, 158, 222, 138, 84, 235, 26, 131, 26, 199, 198, 3, 154, 14, 102, 152, 240, 133, 7, 90, 28, 62, 223, 157, 226, 165, 173, 113, 86, 120, 138, 168, 14, 29, 176, 169, 163, 150, 54, 254, 199, 219, 227, 36, 52, 156, 206, 25, 122, 47, 148, 107, 191, 11, 22, 72, 165, 130, 95, 108, 140, 241, 163, 54, 111, 230, 46, 138, 6, 2, 17, 130, 202, 212, 173, 21, 228, 12, 220, 249, 143, 28, 3, 19, 166, 170, 53, 183, 196, 20, 71, 182, 39, 105, 139, 219, 205, 230, 131, 25, 70, 75, 114, 245, 0, 102, 100, 122, 69, 76, 177, 171, 217, 229, 153, 142, 8, 183, 166, 106, 243, 112, 46, 47, 97, 146, 165, 92, 104, 175, 140, 106, 99, 62, 108, 122, 39, 195, 112, 65, 234, 191, 140, 150, 10, 37, 70, 64, 43, 54, 164, 53, 77, 17, 133, 8, 92, 42, 26, 118, 44, 119, 121, 170, 61, 66, 103, 186, 26, 220, 80, 78, 120, 238, 179, 18, 47, 12, 150, 170, 43, 226, 154, 0, 92, 197, 155, 0, 20, 237, 203, 172, 238, 127, 50, 101, 108, 239, 175, 147, 36, 238, 117, 125, 234, 86, 12, 125, 58, 51, 100, 106, 150, 124, 36, 254, 23, 153, 41, 93, 205, 81, 212, 105, 60, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130)
+	[byte[]]$WindowIcon = @(71, 73, 70, 56, 57, 97, 32, 0, 32, 0, 231, 137, 0, 0, 52, 93, 0, 52, 94, 0, 52, 95, 0, 53, 93, 0, 53, 94, 0, 53, 95, 0,53, 96, 0, 54, 94, 0, 54, 95, 0, 54, 96, 2, 54, 95, 0, 55, 95, 1, 55, 96, 1, 55, 97, 6, 55, 96, 3, 56, 98, 7, 55, 96, 8, 55, 97, 9, 56, 102, 15, 57, 98, 17, 58, 98, 27, 61, 99, 27, 61, 100, 24, 61, 116, 32, 63, 100, 36, 65, 102, 37, 66, 103, 41, 68, 104, 48, 72, 106, 52, 75, 108, 55, 77, 108, 57, 78, 109, 58, 79, 111, 59, 79, 110, 64, 83, 114, 65, 83, 114, 68, 85, 116, 69, 86, 117, 71, 88, 116, 75, 91, 120, 81, 95, 123, 86, 99, 126, 88, 101, 125, 89, 102, 126, 90, 103, 129, 92, 103, 130, 95, 107, 132, 97, 108, 132, 99, 110, 134, 100, 111, 135, 102, 113, 136, 104, 114, 137, 106, 116, 137, 106,116, 139, 107, 116, 139, 110, 119, 139, 112, 121, 143, 116, 124, 145, 120, 128, 147, 121, 129, 148, 124, 132, 150, 125,133, 151, 126, 134, 152, 127, 134, 152, 128, 135, 152, 130, 137, 154, 131, 138, 155, 133, 140, 157, 134, 141, 158, 135,141, 158, 140, 146, 161, 143, 149, 164, 147, 152, 167, 148, 153, 168, 151, 156, 171, 153, 158, 172, 153, 158, 173, 156,160, 174, 156, 161, 174, 158, 163, 176, 159, 163, 176, 160, 165, 177, 163, 167, 180, 166, 170, 182, 170, 174, 186, 171,175, 186, 173, 176, 187, 173, 177, 187, 174, 178, 189, 176, 180, 190, 177, 181, 191, 179, 182, 192, 180, 183, 193, 182,185, 196, 185, 188, 197, 188, 191, 200, 190, 193, 201, 193, 195, 203, 193, 196, 204, 196, 198, 206, 196, 199, 207, 197,200, 207, 197, 200, 208, 198, 200, 208, 199, 201, 208, 199, 201, 209, 200, 202, 209, 200, 202, 210, 202, 204, 212, 204,206, 214, 206, 208, 215, 206, 208, 216, 208, 210, 218, 209, 210, 217, 209, 210, 220, 209, 211, 218, 210, 211, 219, 210,211, 220, 210, 212, 219, 211, 212, 219, 211, 212, 220, 212, 213, 221, 214, 215, 223, 215, 216, 223, 215, 216, 224, 216,217, 224, 217, 218, 225, 218, 219, 226, 218, 220, 226, 219, 220, 226, 219, 220, 227, 220, 221, 227, 221, 223, 228, 224,225, 231, 228, 229, 234, 230, 231, 235, 251, 251, 252, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,255, 255, 255, 255, 255, 255, 255, 255, 33, 254, 17, 67, 114, 101, 97, 116, 101, 100, 32, 119, 105, 116, 104, 32, 71, 73, 77, 80, 0, 33, 249, 4, 1, 10, 0, 255, 0, 44, 0, 0, 0, 0, 32, 0, 32, 0, 0, 8, 254, 0, 255, 29, 24, 72, 176, 160, 193, 131, 8, 25, 60, 16, 120, 192, 195, 10, 132, 16, 35, 170, 248, 112, 160, 193, 64, 30, 135, 4, 68, 220, 72, 16, 128, 33, 32, 7, 22, 92, 68, 84, 132, 35, 71, 33, 136, 64, 18, 228, 81, 135, 206, 0, 147, 16, 7, 192, 145, 163, 242, 226, 26, 52, 53, 96, 34, 148, 161, 230, 76, 205, 3, 60, 214, 204, 72, 163, 243, 160, 25, 27, 62, 11, 6, 61, 96, 231, 68, 81, 130, 38, 240, 28, 72, 186, 114, 205, 129, 33, 94, 158, 14, 236, 66, 100, 234, 207, 165, 14, 254, 108, 120, 170, 193, 15, 4, 175, 74, 173, 30, 120, 50, 229, 169, 20, 40, 3, 169, 218, 28, 152, 33, 80, 2, 157, 6, 252, 100, 136, 251, 85, 237, 1, 46, 71,116, 26, 225, 66, 80, 46, 80, 191, 37, 244, 0, 48, 57, 32, 15, 137, 194, 125, 11, 150, 201, 97, 18, 7, 153, 130, 134, 151, 18, 140, 209, 198, 36, 27, 24, 152, 35, 23, 188, 147, 98, 35, 138, 56, 6, 51, 251, 29, 24, 4, 204, 198, 47, 63, 82, 139, 38, 168, 64, 80, 7, 136, 28, 250, 32, 144, 157, 246, 96, 19, 43, 16, 169, 44, 57, 168, 250, 32, 6, 66, 19, 14, 70, 248, 99, 129, 248, 236, 130, 90, 148, 28, 76, 130, 5, 97, 241, 131, 35, 254, 4, 40, 8, 128, 15, 8, 235, 207, 11, 88, 142, 233, 81, 112, 71, 24, 136, 215, 15, 190, 152, 67, 128, 224, 27, 22, 232, 195, 23, 180, 227, 98, 96, 11, 55, 17, 211, 31, 244, 49, 102, 160, 24, 29, 249, 201, 71, 80, 1, 131, 136, 16, 194, 30, 237, 197, 215, 91, 68, 76, 108, 145, 5, 18, 27, 233, 119, 80, 5, 133, 0, 66, 65, 132, 32, 73, 48, 16, 13, 87, 112, 20, 133, 19, 28, 85, 113, 195, 1, 23, 48, 164, 85, 68, 18, 148, 24, 16, 0, 59)
 	$ico = New-Object IO.MemoryStream($WindowIcon, 0, $WindowIcon.Length)
 	$form.Icon = [System.Drawing.Icon]::FromHandle((new-object System.Drawing.Bitmap -argument $ico).GetHIcon())
      
@@ -1800,7 +1530,7 @@ function Edit-Policy([string]$Message, [string]$WindowTitle, [string]$PolicyName
 
 function Move-Up
 {
-	$checkResult = CheckSkypeForBusinessOnline
+	$checkResult = CheckTeamsOnline
 	if($checkResult)
 	{
 		foreach ($lvi in $lv.SelectedItems)
@@ -1858,7 +1588,7 @@ function Move-Up
 
 function Move-Down
 {
-	$checkResult = CheckSkypeForBusinessOnline
+	$checkResult = CheckTeamsOnline
 	if($checkResult)
 	{
 		foreach ($lvi in $lv.SelectedItems)
@@ -1920,7 +1650,7 @@ function GetNormalisationPolicy
 	
 	$theIdentity = $policyDropDownBox.SelectedItem.ToString()
 	Write-Host "INFO: Getting rules for $theIdentity" -foreground "yellow"
-	$checkResult = CheckSkypeForBusinessOnline
+	$checkResult = CheckTeamsOnline
 	if($checkResult)
 	{
 		$TenantDialPlan = Get-CsTenantDialPlan -identity $theIdentity
@@ -2005,7 +1735,7 @@ function AddSetting
 	
 	if($Scope -ne "" -and $Scope -ne $null -and $Name -ne "" -and $Name -ne $null -and $Pattern -ne "" -and $Pattern -ne $null -and $Translation -ne "" -and $Translation -ne $null)
 	{
-		$checkResult = CheckSkypeForBusinessOnline
+		$checkResult = CheckTeamsOnline
 		if($checkResult)
 		{
 			[string]$Name = $NameTextBox.Text
@@ -2075,7 +1805,7 @@ function AddSetting
 
 function DeleteSetting
 {
-	$checkResult = CheckSkypeForBusinessOnline
+	$checkResult = CheckTeamsOnline
 	if($checkResult)
 	{
 		if($lv.SelectedItems.Count -le 0)
@@ -2125,7 +1855,7 @@ function DeleteSetting
 
 function DeleteAllSettings
 {
-	$checkResult = CheckSkypeForBusinessOnline
+	$checkResult = CheckTeamsOnline
 	if($checkResult)
 	{
 		[string]$Scope = $policyDropDownBox.SelectedItem.ToString()
@@ -2303,7 +2033,7 @@ function Export-Config
 }
 
 
-$result = CheckSkypeForBusinessOnlineInitial
+$result = CheckTeamsOnlineInitial
 
 
 # Activate the form ============================================================
@@ -2312,156 +2042,141 @@ $mainForm.Add_Shown({$mainForm.Activate()})
 
 
 # SIG # Begin signature block
-# MIIcZgYJKoZIhvcNAQcCoIIcVzCCHFMCAQExCzAJBgUrDgMCGgUAMGkGCisGAQQB
+# MIIZlgYJKoZIhvcNAQcCoIIZhzCCGYMCAQExCzAJBgUrDgMCGgUAMGkGCisGAQQB
 # gjcCAQSgWzBZMDQGCisGAQQBgjcCAR4wJgIDAQAABBAfzDtgWUsITrck0sYpfvNR
-# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUSqq9tV78jQx25u75MI0BF8ZJ
-# oiyggheVMIIFHjCCBAagAwIBAgIQDGWW2SJRLPvqOO0rxctZHTANBgkqhkiG9w0B
+# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUijbMFj+rLz9Y1vg/JDzPiHZU
+# rD+gghSkMIIE/jCCA+agAwIBAgIQDUJK4L46iP9gQCHOFADw3TANBgkqhkiG9w0B
 # AQsFADByMQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYD
 # VQQLExB3d3cuZGlnaWNlcnQuY29tMTEwLwYDVQQDEyhEaWdpQ2VydCBTSEEyIEFz
-# c3VyZWQgSUQgQ29kZSBTaWduaW5nIENBMB4XDTE5MDIwNjAwMDAwMFoXDTIwMDIw
-# NjEyMDAwMFowWzELMAkGA1UEBhMCQVUxDDAKBgNVBAgTA1ZJQzEQMA4GA1UEBxMH
-# TWl0Y2hhbTEVMBMGA1UEChMMSmFtZXMgQ3Vzc2VuMRUwEwYDVQQDEwxKYW1lcyBD
-# dXNzZW4wggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDHPwqNOkuXxh8T
-# 7y2cCWgLtpW30x/3rEUFnrlCv2DFgULLfZHFTd+HWhCiTUMHVESj+X8s+cmgKVWN
-# bmEWPri590V6kfUmjtC+4/iKdVpvjgwrwAm6O6lHZ91y4Sn90A7eUV/EvUmGREVx
-# uFk2s7jD/cYjTzm0fACQBuPz5sVjTzgFzbZMndPcptB8uEjtIF/k6BGCy7XyAMn6
-# 0IncNguxGZBsS/CQQlsXlVhTnBn0QQxa7nRcpJQs/84OXjDypgjW6gVOf3hOzfXY
-# rXNR54nqIh/VKFKz+PiEIW11yLW0608cI0xEE03yBOg14NGIapNBwOwSpeLMlQbH
-# c9twu9BhAgMBAAGjggHFMIIBwTAfBgNVHSMEGDAWgBRaxLl7KgqjpepxA8Bg+S32
-# ZXUOWDAdBgNVHQ4EFgQU2P05tP7466o6clrA//AUqWO4b2swDgYDVR0PAQH/BAQD
-# AgeAMBMGA1UdJQQMMAoGCCsGAQUFBwMDMHcGA1UdHwRwMG4wNaAzoDGGL2h0dHA6
-# Ly9jcmwzLmRpZ2ljZXJ0LmNvbS9zaGEyLWFzc3VyZWQtY3MtZzEuY3JsMDWgM6Ax
-# hi9odHRwOi8vY3JsNC5kaWdpY2VydC5jb20vc2hhMi1hc3N1cmVkLWNzLWcxLmNy
-# bDBMBgNVHSAERTBDMDcGCWCGSAGG/WwDATAqMCgGCCsGAQUFBwIBFhxodHRwczov
-# L3d3dy5kaWdpY2VydC5jb20vQ1BTMAgGBmeBDAEEATCBhAYIKwYBBQUHAQEEeDB2
-# MCQGCCsGAQUFBzABhhhodHRwOi8vb2NzcC5kaWdpY2VydC5jb20wTgYIKwYBBQUH
-# MAKGQmh0dHA6Ly9jYWNlcnRzLmRpZ2ljZXJ0LmNvbS9EaWdpQ2VydFNIQTJBc3N1
-# cmVkSURDb2RlU2lnbmluZ0NBLmNydDAMBgNVHRMBAf8EAjAAMA0GCSqGSIb3DQEB
-# CwUAA4IBAQCdaeq4xJ8ISuvZmb+ojTtfPN8PDWxDIsWos6e0KJ4sX7jYR/xXiG1k
-# LgI5bVrb95YQNDIfB9ZeaVDrtrhEBu8Z3z3ZQFcwAudIvDyRw8HQCe7F3vKelMem
-# TccwqWw/UuWWicqYzlK4Gz8abnSYSlCT52F8RpBO+T7j0ZSMycFDvFbfgBQk51uF
-# mOFZk3RZE/ixSYEXlC1mS9/h3U9o30KuvVs3IfyITok4fSC7Wl9+24qmYDYYKh8H
-# 2/jRG2oneR7yNCwUAMxnZBFjFI8/fNWALqXyMkyWZOIgzewSiELGXrQwauiOUXf4
-# W7AIAXkINv7dFj2bS/QR/bROZ0zA5bJVMIIFMDCCBBigAwIBAgIQBAkYG1/Vu2Z1
-# U0O1b5VQCDANBgkqhkiG9w0BAQsFADBlMQswCQYDVQQGEwJVUzEVMBMGA1UEChMM
-# RGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3d3cuZGlnaWNlcnQuY29tMSQwIgYDVQQD
-# ExtEaWdpQ2VydCBBc3N1cmVkIElEIFJvb3QgQ0EwHhcNMTMxMDIyMTIwMDAwWhcN
-# MjgxMDIyMTIwMDAwWjByMQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQg
-# SW5jMRkwFwYDVQQLExB3d3cuZGlnaWNlcnQuY29tMTEwLwYDVQQDEyhEaWdpQ2Vy
-# dCBTSEEyIEFzc3VyZWQgSUQgQ29kZSBTaWduaW5nIENBMIIBIjANBgkqhkiG9w0B
-# AQEFAAOCAQ8AMIIBCgKCAQEA+NOzHH8OEa9ndwfTCzFJGc/Q+0WZsTrbRPV/5aid
-# 2zLXcep2nQUut4/6kkPApfmJ1DcZ17aq8JyGpdglrA55KDp+6dFn08b7KSfH03sj
-# lOSRI5aQd4L5oYQjZhJUM1B0sSgmuyRpwsJS8hRniolF1C2ho+mILCCVrhxKhwjf
-# DPXiTWAYvqrEsq5wMWYzcT6scKKrzn/pfMuSoeU7MRzP6vIK5Fe7SrXpdOYr/mzL
-# fnQ5Ng2Q7+S1TqSp6moKq4TzrGdOtcT3jNEgJSPrCGQ+UpbB8g8S9MWOD8Gi6CxR
-# 93O8vYWxYoNzQYIH5DiLanMg0A9kczyen6Yzqf0Z3yWT0QIDAQABo4IBzTCCAckw
-# EgYDVR0TAQH/BAgwBgEB/wIBADAOBgNVHQ8BAf8EBAMCAYYwEwYDVR0lBAwwCgYI
-# KwYBBQUHAwMweQYIKwYBBQUHAQEEbTBrMCQGCCsGAQUFBzABhhhodHRwOi8vb2Nz
-# cC5kaWdpY2VydC5jb20wQwYIKwYBBQUHMAKGN2h0dHA6Ly9jYWNlcnRzLmRpZ2lj
-# ZXJ0LmNvbS9EaWdpQ2VydEFzc3VyZWRJRFJvb3RDQS5jcnQwgYEGA1UdHwR6MHgw
-# OqA4oDaGNGh0dHA6Ly9jcmw0LmRpZ2ljZXJ0LmNvbS9EaWdpQ2VydEFzc3VyZWRJ
-# RFJvb3RDQS5jcmwwOqA4oDaGNGh0dHA6Ly9jcmwzLmRpZ2ljZXJ0LmNvbS9EaWdp
-# Q2VydEFzc3VyZWRJRFJvb3RDQS5jcmwwTwYDVR0gBEgwRjA4BgpghkgBhv1sAAIE
-# MCowKAYIKwYBBQUHAgEWHGh0dHBzOi8vd3d3LmRpZ2ljZXJ0LmNvbS9DUFMwCgYI
-# YIZIAYb9bAMwHQYDVR0OBBYEFFrEuXsqCqOl6nEDwGD5LfZldQ5YMB8GA1UdIwQY
-# MBaAFEXroq/0ksuCMS1Ri6enIZ3zbcgPMA0GCSqGSIb3DQEBCwUAA4IBAQA+7A1a
-# JLPzItEVyCx8JSl2qB1dHC06GsTvMGHXfgtg/cM9D8Svi/3vKt8gVTew4fbRknUP
-# UbRupY5a4l4kgU4QpO4/cY5jDhNLrddfRHnzNhQGivecRk5c/5CxGwcOkRX7uq+1
-# UcKNJK4kxscnKqEpKBo6cSgCPC6Ro8AlEeKcFEehemhor5unXCBc2XGxDI+7qPjF
-# Emifz0DLQESlE/DmZAwlCEIysjaKJAL+L3J+HNdJRZboWR3p+nRka7LrZkPas7CM
-# 1ekN3fYBIM6ZMWM9CBoYs4GbT8aTEAb8B4H6i9r5gkn3Ym6hU/oSlBiFLpKR6mhs
-# RDKyZqHnGKSaZFHvMIIGajCCBVKgAwIBAgIQAwGaAjr/WLFr1tXq5hfwZjANBgkq
-# hkiG9w0BAQUFADBiMQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5j
-# MRkwFwYDVQQLExB3d3cuZGlnaWNlcnQuY29tMSEwHwYDVQQDExhEaWdpQ2VydCBB
-# c3N1cmVkIElEIENBLTEwHhcNMTQxMDIyMDAwMDAwWhcNMjQxMDIyMDAwMDAwWjBH
-# MQswCQYDVQQGEwJVUzERMA8GA1UEChMIRGlnaUNlcnQxJTAjBgNVBAMTHERpZ2lD
-# ZXJ0IFRpbWVzdGFtcCBSZXNwb25kZXIwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAw
-# ggEKAoIBAQCjZF38fLPggjXg4PbGKuZJdTvMbuBTqZ8fZFnmfGt/a4ydVfiS457V
-# WmNbAklQ2YPOb2bu3cuF6V+l+dSHdIhEOxnJ5fWRn8YUOawk6qhLLJGJzF4o9GS2
-# ULf1ErNzlgpno75hn67z/RJ4dQ6mWxT9RSOOhkRVfRiGBYxVh3lIRvfKDo2n3k5f
-# 4qi2LVkCYYhhchhoubh87ubnNC8xd4EwH7s2AY3vJ+P3mvBMMWSN4+v6GYeofs/s
-# jAw2W3rBerh4x8kGLkYQyI3oBGDbvHN0+k7Y/qpA8bLOcEaD6dpAoVk62RUJV5lW
-# MJPzyWHM0AjMa+xiQpGsAsDvpPCJEY93AgMBAAGjggM1MIIDMTAOBgNVHQ8BAf8E
-# BAMCB4AwDAYDVR0TAQH/BAIwADAWBgNVHSUBAf8EDDAKBggrBgEFBQcDCDCCAb8G
-# A1UdIASCAbYwggGyMIIBoQYJYIZIAYb9bAcBMIIBkjAoBggrBgEFBQcCARYcaHR0
-# cHM6Ly93d3cuZGlnaWNlcnQuY29tL0NQUzCCAWQGCCsGAQUFBwICMIIBVh6CAVIA
-# QQBuAHkAIAB1AHMAZQAgAG8AZgAgAHQAaABpAHMAIABDAGUAcgB0AGkAZgBpAGMA
-# YQB0AGUAIABjAG8AbgBzAHQAaQB0AHUAdABlAHMAIABhAGMAYwBlAHAAdABhAG4A
-# YwBlACAAbwBmACAAdABoAGUAIABEAGkAZwBpAEMAZQByAHQAIABDAFAALwBDAFAA
-# UwAgAGEAbgBkACAAdABoAGUAIABSAGUAbAB5AGkAbgBnACAAUABhAHIAdAB5ACAA
-# QQBnAHIAZQBlAG0AZQBuAHQAIAB3AGgAaQBjAGgAIABsAGkAbQBpAHQAIABsAGkA
-# YQBiAGkAbABpAHQAeQAgAGEAbgBkACAAYQByAGUAIABpAG4AYwBvAHIAcABvAHIA
-# YQB0AGUAZAAgAGgAZQByAGUAaQBuACAAYgB5ACAAcgBlAGYAZQByAGUAbgBjAGUA
-# LjALBglghkgBhv1sAxUwHwYDVR0jBBgwFoAUFQASKxOYspkH7R7for5XDStnAs0w
-# HQYDVR0OBBYEFGFaTSS2STKdSip5GoNL9B6Jwcp9MH0GA1UdHwR2MHQwOKA2oDSG
-# Mmh0dHA6Ly9jcmwzLmRpZ2ljZXJ0LmNvbS9EaWdpQ2VydEFzc3VyZWRJRENBLTEu
-# Y3JsMDigNqA0hjJodHRwOi8vY3JsNC5kaWdpY2VydC5jb20vRGlnaUNlcnRBc3N1
-# cmVkSURDQS0xLmNybDB3BggrBgEFBQcBAQRrMGkwJAYIKwYBBQUHMAGGGGh0dHA6
-# Ly9vY3NwLmRpZ2ljZXJ0LmNvbTBBBggrBgEFBQcwAoY1aHR0cDovL2NhY2VydHMu
-# ZGlnaWNlcnQuY29tL0RpZ2lDZXJ0QXNzdXJlZElEQ0EtMS5jcnQwDQYJKoZIhvcN
-# AQEFBQADggEBAJ0lfhszTbImgVybhs4jIA+Ah+WI//+x1GosMe06FxlxF82pG7xa
-# FjkAneNshORaQPveBgGMN/qbsZ0kfv4gpFetW7easGAm6mlXIV00Lx9xsIOUGQVr
-# NZAQoHuXx/Y/5+IRQaa9YtnwJz04HShvOlIJ8OxwYtNiS7Dgc6aSwNOOMdgv420X
-# Ewbu5AO2FKvzj0OncZ0h3RTKFV2SQdr5D4HRmXQNJsQOfxu19aDxxncGKBXp2JPl
-# VRbwuwqrHNtcSCdmyKOLChzlldquxC5ZoGHd2vNtomHpigtt7BIYvfdVVEADkitr
-# wlHCCkivsNRu4PQUCjob4489yq9qjXvc2EQwggbNMIIFtaADAgECAhAG/fkDlgOt
-# 6gAK6z8nu7obMA0GCSqGSIb3DQEBBQUAMGUxCzAJBgNVBAYTAlVTMRUwEwYDVQQK
-# EwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20xJDAiBgNV
-# BAMTG0RpZ2lDZXJ0IEFzc3VyZWQgSUQgUm9vdCBDQTAeFw0wNjExMTAwMDAwMDBa
-# Fw0yMTExMTAwMDAwMDBaMGIxCzAJBgNVBAYTAlVTMRUwEwYDVQQKEwxEaWdpQ2Vy
-# dCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20xITAfBgNVBAMTGERpZ2lD
-# ZXJ0IEFzc3VyZWQgSUQgQ0EtMTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoC
-# ggEBAOiCLZn5ysJClaWAc0Bw0p5WVFypxNJBBo/JM/xNRZFcgZ/tLJz4FlnfnrUk
-# FcKYubR3SdyJxArar8tea+2tsHEx6886QAxGTZPsi3o2CAOrDDT+GEmC/sfHMUiA
-# fB6iD5IOUMnGh+s2P9gww/+m9/uizW9zI/6sVgWQ8DIhFonGcIj5BZd9o8dD3QLo
-# Oz3tsUGj7T++25VIxO4es/K8DCuZ0MZdEkKB4YNugnM/JksUkK5ZZgrEjb7Szgau
-# rYRvSISbT0C58Uzyr5j79s5AXVz2qPEvr+yJIvJrGGWxwXOt1/HYzx4KdFxCuGh+
-# t9V3CidWfA9ipD8yFGCV/QcEogkCAwEAAaOCA3owggN2MA4GA1UdDwEB/wQEAwIB
-# hjA7BgNVHSUENDAyBggrBgEFBQcDAQYIKwYBBQUHAwIGCCsGAQUFBwMDBggrBgEF
-# BQcDBAYIKwYBBQUHAwgwggHSBgNVHSAEggHJMIIBxTCCAbQGCmCGSAGG/WwAAQQw
-# ggGkMDoGCCsGAQUFBwIBFi5odHRwOi8vd3d3LmRpZ2ljZXJ0LmNvbS9zc2wtY3Bz
-# LXJlcG9zaXRvcnkuaHRtMIIBZAYIKwYBBQUHAgIwggFWHoIBUgBBAG4AeQAgAHUA
-# cwBlACAAbwBmACAAdABoAGkAcwAgAEMAZQByAHQAaQBmAGkAYwBhAHQAZQAgAGMA
-# bwBuAHMAdABpAHQAdQB0AGUAcwAgAGEAYwBjAGUAcAB0AGEAbgBjAGUAIABvAGYA
-# IAB0AGgAZQAgAEQAaQBnAGkAQwBlAHIAdAAgAEMAUAAvAEMAUABTACAAYQBuAGQA
-# IAB0AGgAZQAgAFIAZQBsAHkAaQBuAGcAIABQAGEAcgB0AHkAIABBAGcAcgBlAGUA
-# bQBlAG4AdAAgAHcAaABpAGMAaAAgAGwAaQBtAGkAdAAgAGwAaQBhAGIAaQBsAGkA
-# dAB5ACAAYQBuAGQAIABhAHIAZQAgAGkAbgBjAG8AcgBwAG8AcgBhAHQAZQBkACAA
-# aABlAHIAZQBpAG4AIABiAHkAIAByAGUAZgBlAHIAZQBuAGMAZQAuMAsGCWCGSAGG
-# /WwDFTASBgNVHRMBAf8ECDAGAQH/AgEAMHkGCCsGAQUFBwEBBG0wazAkBggrBgEF
+# c3VyZWQgSUQgVGltZXN0YW1waW5nIENBMB4XDTIxMDEwMTAwMDAwMFoXDTMxMDEw
+# NjAwMDAwMFowSDELMAkGA1UEBhMCVVMxFzAVBgNVBAoTDkRpZ2lDZXJ0LCBJbmMu
+# MSAwHgYDVQQDExdEaWdpQ2VydCBUaW1lc3RhbXAgMjAyMTCCASIwDQYJKoZIhvcN
+# AQEBBQADggEPADCCAQoCggEBAMLmYYRnxYr1DQikRcpja1HXOhFCvQp1dU2UtAxQ
+# tSYQ/h3Ib5FrDJbnGlxI70Tlv5thzRWRYlq4/2cLnGP9NmqB+in43Stwhd4CGPN4
+# bbx9+cdtCT2+anaH6Yq9+IRdHnbJ5MZ2djpT0dHTWjaPxqPhLxs6t2HWc+xObTOK
+# fF1FLUuxUOZBOjdWhtyTI433UCXoZObd048vV7WHIOsOjizVI9r0TXhG4wODMSlK
+# XAwxikqMiMX3MFr5FK8VX2xDSQn9JiNT9o1j6BqrW7EdMMKbaYK02/xWVLwfoYer
+# vnpbCiAvSwnJlaeNsvrWY4tOpXIc7p96AXP4Gdb+DUmEvQECAwEAAaOCAbgwggG0
+# MA4GA1UdDwEB/wQEAwIHgDAMBgNVHRMBAf8EAjAAMBYGA1UdJQEB/wQMMAoGCCsG
+# AQUFBwMIMEEGA1UdIAQ6MDgwNgYJYIZIAYb9bAcBMCkwJwYIKwYBBQUHAgEWG2h0
+# dHA6Ly93d3cuZGlnaWNlcnQuY29tL0NQUzAfBgNVHSMEGDAWgBT0tuEgHf4prtLk
+# YaWyoiWyyBc1bjAdBgNVHQ4EFgQUNkSGjqS6sGa+vCgtHUQ23eNqerwwcQYDVR0f
+# BGowaDAyoDCgLoYsaHR0cDovL2NybDMuZGlnaWNlcnQuY29tL3NoYTItYXNzdXJl
+# ZC10cy5jcmwwMqAwoC6GLGh0dHA6Ly9jcmw0LmRpZ2ljZXJ0LmNvbS9zaGEyLWFz
+# c3VyZWQtdHMuY3JsMIGFBggrBgEFBQcBAQR5MHcwJAYIKwYBBQUHMAGGGGh0dHA6
+# Ly9vY3NwLmRpZ2ljZXJ0LmNvbTBPBggrBgEFBQcwAoZDaHR0cDovL2NhY2VydHMu
+# ZGlnaWNlcnQuY29tL0RpZ2lDZXJ0U0hBMkFzc3VyZWRJRFRpbWVzdGFtcGluZ0NB
+# LmNydDANBgkqhkiG9w0BAQsFAAOCAQEASBzctemaI7znGucgDo5nRv1CclF0CiNH
+# o6uS0iXEcFm+FKDlJ4GlTRQVGQd58NEEw4bZO73+RAJmTe1ppA/2uHDPYuj1UUp4
+# eTZ6J7fz51Kfk6ftQ55757TdQSKJ+4eiRgNO/PT+t2R3Y18jUmmDgvoaU+2QzI2h
+# F3MN9PNlOXBL85zWenvaDLw9MtAby/Vh/HUIAHa8gQ74wOFcz8QRcucbZEnYIpp1
+# FUL1LTI4gdr0YKK6tFL7XOBhJCVPst/JKahzQ1HavWPWH1ub9y4bTxMd90oNcX6X
+# t/Q/hOvB46NJofrOp79Wz7pZdmGJX36ntI5nePk2mOHLKNpbh6aKLzCCBTAwggQY
+# oAMCAQICEAQJGBtf1btmdVNDtW+VUAgwDQYJKoZIhvcNAQELBQAwZTELMAkGA1UE
+# BhMCVVMxFTATBgNVBAoTDERpZ2lDZXJ0IEluYzEZMBcGA1UECxMQd3d3LmRpZ2lj
+# ZXJ0LmNvbTEkMCIGA1UEAxMbRGlnaUNlcnQgQXNzdXJlZCBJRCBSb290IENBMB4X
+# DTEzMTAyMjEyMDAwMFoXDTI4MTAyMjEyMDAwMFowcjELMAkGA1UEBhMCVVMxFTAT
+# BgNVBAoTDERpZ2lDZXJ0IEluYzEZMBcGA1UECxMQd3d3LmRpZ2ljZXJ0LmNvbTEx
+# MC8GA1UEAxMoRGlnaUNlcnQgU0hBMiBBc3N1cmVkIElEIENvZGUgU2lnbmluZyBD
+# QTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAPjTsxx/DhGvZ3cH0wsx
+# SRnP0PtFmbE620T1f+Wondsy13Hqdp0FLreP+pJDwKX5idQ3Gde2qvCchqXYJawO
+# eSg6funRZ9PG+yknx9N7I5TkkSOWkHeC+aGEI2YSVDNQdLEoJrskacLCUvIUZ4qJ
+# RdQtoaPpiCwgla4cSocI3wz14k1gGL6qxLKucDFmM3E+rHCiq85/6XzLkqHlOzEc
+# z+ryCuRXu0q16XTmK/5sy350OTYNkO/ktU6kqepqCquE86xnTrXE94zRICUj6whk
+# PlKWwfIPEvTFjg/BougsUfdzvL2FsWKDc0GCB+Q4i2pzINAPZHM8np+mM6n9Gd8l
+# k9ECAwEAAaOCAc0wggHJMBIGA1UdEwEB/wQIMAYBAf8CAQAwDgYDVR0PAQH/BAQD
+# AgGGMBMGA1UdJQQMMAoGCCsGAQUFBwMDMHkGCCsGAQUFBwEBBG0wazAkBggrBgEF
 # BQcwAYYYaHR0cDovL29jc3AuZGlnaWNlcnQuY29tMEMGCCsGAQUFBzAChjdodHRw
 # Oi8vY2FjZXJ0cy5kaWdpY2VydC5jb20vRGlnaUNlcnRBc3N1cmVkSURSb290Q0Eu
-# Y3J0MIGBBgNVHR8EejB4MDqgOKA2hjRodHRwOi8vY3JsMy5kaWdpY2VydC5jb20v
-# RGlnaUNlcnRBc3N1cmVkSURSb290Q0EuY3JsMDqgOKA2hjRodHRwOi8vY3JsNC5k
-# aWdpY2VydC5jb20vRGlnaUNlcnRBc3N1cmVkSURSb290Q0EuY3JsMB0GA1UdDgQW
-# BBQVABIrE5iymQftHt+ivlcNK2cCzTAfBgNVHSMEGDAWgBRF66Kv9JLLgjEtUYun
-# pyGd823IDzANBgkqhkiG9w0BAQUFAAOCAQEARlA+ybcoJKc4HbZbKa9Sz1LpMUer
-# Vlx71Q0LQbPv7HUfdDjyslxhopyVw1Dkgrkj0bo6hnKtOHisdV0XFzRyR4WUVtHr
-# uzaEd8wkpfMEGVWp5+Pnq2LN+4stkMLA0rWUvV5PsQXSDj0aqRRbpoYxYqioM+Sb
-# OafE9c4deHaUJXPkKqvPnHZL7V/CSxbkS3BMAIke/MV5vEwSV/5f4R68Al2o/vsH
-# OE8Nxl2RuQ9nRc3Wg+3nkg2NsWmMT/tZ4CMP0qquAHzunEIOz5HXJ7cW7g/DvXwK
-# oO4sCFWFIrjrGBpN/CohrUkxg0eVd3HcsRtLSxwQnHcUwZ1PL1qVCCkQJjGCBDsw
-# ggQ3AgEBMIGGMHIxCzAJBgNVBAYTAlVTMRUwEwYDVQQKEwxEaWdpQ2VydCBJbmMx
-# GTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20xMTAvBgNVBAMTKERpZ2lDZXJ0IFNI
-# QTIgQXNzdXJlZCBJRCBDb2RlIFNpZ25pbmcgQ0ECEAxlltkiUSz76jjtK8XLWR0w
-# CQYFKw4DAhoFAKB4MBgGCisGAQQBgjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcN
-# AQkDMQwGCisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUw
-# IwYJKoZIhvcNAQkEMRYEFFPdhuNE4YPBkgY5jllH9P0+vpkvMA0GCSqGSIb3DQEB
-# AQUABIIBAJ35NG4tIDSjat+dr/bfNHup8Ftvh3FNI76vSIemMUeEXmd01pQKrMXG
-# s/cv4Q5YpQcTLWUHJkuBOAWFl7SkTbsUMkMoCPVMhNkWheTwox59uGUe2HM3rlML
-# XomJxG59P41hhuRpXpL4YcknRydOYXnTBdHNrMvNdCojX0pqpMzzZjoHsABgNoF8
-# yRGadce530w/Q/EZFLrIgJpdz1e8hXlnXTTZwOzVaTIo78P+93zowJdH7wYjv0Hv
-# uJR/v4CuapVEnWRZW4+xqTo7IPhxvbdafO/Jbsukr36DC2K4BENdkaMHNC8N1E0s
-# AhENOfCBa6D0cnUzJT7OR1GP6QNB5sKhggIPMIICCwYJKoZIhvcNAQkGMYIB/DCC
-# AfgCAQEwdjBiMQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkw
-# FwYDVQQLExB3d3cuZGlnaWNlcnQuY29tMSEwHwYDVQQDExhEaWdpQ2VydCBBc3N1
-# cmVkIElEIENBLTECEAMBmgI6/1ixa9bV6uYX8GYwCQYFKw4DAhoFAKBdMBgGCSqG
-# SIb3DQEJAzELBgkqhkiG9w0BBwEwHAYJKoZIhvcNAQkFMQ8XDTE5MDkwNTExMzA1
-# NlowIwYJKoZIhvcNAQkEMRYEFPihWMPSe7n5COQeqJqbtr4ulHSsMA0GCSqGSIb3
-# DQEBAQUABIIBAD6XXC/4euv8STKaJMlg4KYayrM2qfmCVvuHAhRALQ3FV6sWXlPi
-# ouTRBqnr/EkU0ZohEVBxf7d1IDCdxoDz4K+BVWSganwOd6d9lNdBvCxEu3FAeGp9
-# Gm6ts0fBW9jYibjQp/rA8jPLtQJAU8guEZ6gNpYOnv9AIBgyUvOlgO9DMEr7PHYX
-# WEophcQKZwuKhbFc664SPEY4PtHQ+dTD8874gX+4ohp8Mf/O54LS2s/pRHrh6mpk
-# 5K7OFGItZq60D5jZ+Czyi9NoeuSqdtq3+N4aJIZZlZ3BWgo80vOcaNmLdxsOzzsU
-# z5M97shXFRzCwjAq4z7e7H4T4K9FYX83bCg=
+# Y3J0MIGBBgNVHR8EejB4MDqgOKA2hjRodHRwOi8vY3JsNC5kaWdpY2VydC5jb20v
+# RGlnaUNlcnRBc3N1cmVkSURSb290Q0EuY3JsMDqgOKA2hjRodHRwOi8vY3JsMy5k
+# aWdpY2VydC5jb20vRGlnaUNlcnRBc3N1cmVkSURSb290Q0EuY3JsME8GA1UdIARI
+# MEYwOAYKYIZIAYb9bAACBDAqMCgGCCsGAQUFBwIBFhxodHRwczovL3d3dy5kaWdp
+# Y2VydC5jb20vQ1BTMAoGCGCGSAGG/WwDMB0GA1UdDgQWBBRaxLl7KgqjpepxA8Bg
+# +S32ZXUOWDAfBgNVHSMEGDAWgBRF66Kv9JLLgjEtUYunpyGd823IDzANBgkqhkiG
+# 9w0BAQsFAAOCAQEAPuwNWiSz8yLRFcgsfCUpdqgdXRwtOhrE7zBh134LYP3DPQ/E
+# r4v97yrfIFU3sOH20ZJ1D1G0bqWOWuJeJIFOEKTuP3GOYw4TS63XX0R58zYUBor3
+# nEZOXP+QsRsHDpEV+7qvtVHCjSSuJMbHJyqhKSgaOnEoAjwukaPAJRHinBRHoXpo
+# aK+bp1wgXNlxsQyPu6j4xRJon89Ay0BEpRPw5mQMJQhCMrI2iiQC/i9yfhzXSUWW
+# 6Fkd6fp0ZGuy62ZD2rOwjNXpDd32ASDOmTFjPQgaGLOBm0/GkxAG/AeB+ova+YJJ
+# 92JuoVP6EpQYhS6SkepobEQysmah5xikmmRR7zCCBTEwggQZoAMCAQICEAqhJdbW
+# Mht+QeQF2jaXwhUwDQYJKoZIhvcNAQELBQAwZTELMAkGA1UEBhMCVVMxFTATBgNV
+# BAoTDERpZ2lDZXJ0IEluYzEZMBcGA1UECxMQd3d3LmRpZ2ljZXJ0LmNvbTEkMCIG
+# A1UEAxMbRGlnaUNlcnQgQXNzdXJlZCBJRCBSb290IENBMB4XDTE2MDEwNzEyMDAw
+# MFoXDTMxMDEwNzEyMDAwMFowcjELMAkGA1UEBhMCVVMxFTATBgNVBAoTDERpZ2lD
+# ZXJ0IEluYzEZMBcGA1UECxMQd3d3LmRpZ2ljZXJ0LmNvbTExMC8GA1UEAxMoRGln
+# aUNlcnQgU0hBMiBBc3N1cmVkIElEIFRpbWVzdGFtcGluZyBDQTCCASIwDQYJKoZI
+# hvcNAQEBBQADggEPADCCAQoCggEBAL3QMu5LzY9/3am6gpnFOVQoV7YjSsQOB0Uz
+# URB90Pl9TWh+57ag9I2ziOSXv2MhkJi/E7xX08PhfgjWahQAOPcuHjvuzKb2Mln+
+# X2U/4Jvr40ZHBhpVfgsnfsCi9aDg3iI/Dv9+lfvzo7oiPhisEeTwmQNtO4V8CdPu
+# XciaC1TjqAlxa+DPIhAPdc9xck4Krd9AOly3UeGheRTGTSQjMF287DxgaqwvB8z9
+# 8OpH2YhQXv1mblZhJymJhFHmgudGUP2UKiyn5HU+upgPhH+fMRTWrdXyZMt7HgXQ
+# hBlyF/EXBu89zdZN7wZC/aJTKk+FHcQdPK/P2qwQ9d2srOlW/5MCAwEAAaOCAc4w
+# ggHKMB0GA1UdDgQWBBT0tuEgHf4prtLkYaWyoiWyyBc1bjAfBgNVHSMEGDAWgBRF
+# 66Kv9JLLgjEtUYunpyGd823IDzASBgNVHRMBAf8ECDAGAQH/AgEAMA4GA1UdDwEB
+# /wQEAwIBhjATBgNVHSUEDDAKBggrBgEFBQcDCDB5BggrBgEFBQcBAQRtMGswJAYI
+# KwYBBQUHMAGGGGh0dHA6Ly9vY3NwLmRpZ2ljZXJ0LmNvbTBDBggrBgEFBQcwAoY3
+# aHR0cDovL2NhY2VydHMuZGlnaWNlcnQuY29tL0RpZ2lDZXJ0QXNzdXJlZElEUm9v
+# dENBLmNydDCBgQYDVR0fBHoweDA6oDigNoY0aHR0cDovL2NybDQuZGlnaWNlcnQu
+# Y29tL0RpZ2lDZXJ0QXNzdXJlZElEUm9vdENBLmNybDA6oDigNoY0aHR0cDovL2Ny
+# bDMuZGlnaWNlcnQuY29tL0RpZ2lDZXJ0QXNzdXJlZElEUm9vdENBLmNybDBQBgNV
+# HSAESTBHMDgGCmCGSAGG/WwAAgQwKjAoBggrBgEFBQcCARYcaHR0cHM6Ly93d3cu
+# ZGlnaWNlcnQuY29tL0NQUzALBglghkgBhv1sBwEwDQYJKoZIhvcNAQELBQADggEB
+# AHGVEulRh1Zpze/d2nyqY3qzeM8GN0CE70uEv8rPAwL9xafDDiBCLK938ysfDCFa
+# KrcFNB1qrpn4J6JmvwmqYN92pDqTD/iy0dh8GWLoXoIlHsS6HHssIeLWWywUNUME
+# aLLbdQLgcseY1jxk5R9IEBhfiThhTWJGJIdjjJFSLK8pieV4H9YLFKWA1xJHcLN1
+# 1ZOFk362kmf7U2GJqPVrlsD0WGkNfMgBsbkodbeZY4UijGHKeZR+WfyMD+NvtQEm
+# tmyl7odRIeRYYJu6DC0rbaLEfrvEJStHAgh8Sa4TtuF8QkIoxhhWz0E0tmZdtnR7
+# 9VYzIi8iNrJLokqV2PWmjlIwggU1MIIEHaADAgECAhAKNIchv70WQdoZqmZoB0Fg
+# MA0GCSqGSIb3DQEBCwUAMHIxCzAJBgNVBAYTAlVTMRUwEwYDVQQKEwxEaWdpQ2Vy
+# dCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20xMTAvBgNVBAMTKERpZ2lD
+# ZXJ0IFNIQTIgQXNzdXJlZCBJRCBDb2RlIFNpZ25pbmcgQ0EwHhcNMjAwMTA2MDAw
+# MDAwWhcNMjMwMTEwMTIwMDAwWjByMQswCQYDVQQGEwJBVTEMMAoGA1UECBMDVklD
+# MRAwDgYDVQQHEwdNaXRjaGFtMRUwEwYDVQQKEwxKYW1lcyBDdXNzZW4xFTATBgNV
+# BAsTDEphbWVzIEN1c3NlbjEVMBMGA1UEAxMMSmFtZXMgQ3Vzc2VuMIIBIjANBgkq
+# hkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAzerRQ8lBU+cD9jWzQV7i2saGNzXrXzaN
+# kEUkUdZbem54qullpGQwp6Bb0hzEFsPIaPSd796kIvvQCdb2W6VM9zp5ZxZj8dIh
+# 539for2NW7Av8kjj+qpq+geD7BGWhLXKdMRdfdVZgf9hgWi+FOv+bJHp5MCKi9pN
+# WEi8mgvaRZd2FuGJ7+RlYpYhGamYNw9KaV32/T9t2Mm7b9As1jlss+/Zja+Jsb5R
+# pDFfhSX5eKG1Fy8T0QnaEvJm0Ljr2KD2E9AAmB96ZalNuwhqPociEUflTUyrmSlY
+# w9HxFZ6cWXvHidcXnFW9exHpasXC2agwxYzYs+FqobL6cDw258kidQIDAQABo4IB
+# xTCCAcEwHwYDVR0jBBgwFoAUWsS5eyoKo6XqcQPAYPkt9mV1DlgwHQYDVR0OBBYE
+# FP58C0FrWPjmUX3IhXKbtjOP8UHQMA4GA1UdDwEB/wQEAwIHgDATBgNVHSUEDDAK
+# BggrBgEFBQcDAzB3BgNVHR8EcDBuMDWgM6Axhi9odHRwOi8vY3JsMy5kaWdpY2Vy
+# dC5jb20vc2hhMi1hc3N1cmVkLWNzLWcxLmNybDA1oDOgMYYvaHR0cDovL2NybDQu
+# ZGlnaWNlcnQuY29tL3NoYTItYXNzdXJlZC1jcy1nMS5jcmwwTAYDVR0gBEUwQzA3
+# BglghkgBhv1sAwEwKjAoBggrBgEFBQcCARYcaHR0cHM6Ly93d3cuZGlnaWNlcnQu
+# Y29tL0NQUzAIBgZngQwBBAEwgYQGCCsGAQUFBwEBBHgwdjAkBggrBgEFBQcwAYYY
+# aHR0cDovL29jc3AuZGlnaWNlcnQuY29tME4GCCsGAQUFBzAChkJodHRwOi8vY2Fj
+# ZXJ0cy5kaWdpY2VydC5jb20vRGlnaUNlcnRTSEEyQXNzdXJlZElEQ29kZVNpZ25p
+# bmdDQS5jcnQwDAYDVR0TAQH/BAIwADANBgkqhkiG9w0BAQsFAAOCAQEAfBTJIJek
+# j0gumY4Ej7cbSHLnbMh0hrDXrAaUxFadLJgKMCl8N0YOuR/5Vw4voCvgWuFv1dVO
+# ns7lZzu/Y9T/kPqNpxVzxLO6jZDN3zEPmpt2E1nqelL3BdBF0eEK8i8mEkrFdi8Q
+# gT1VhqjeROCLKUm8N928wM3iBEjH9pFyQlBDNHFgiFt9H/NXhFJ5IfC8yDzbt7a/
+# 9hVwtcWMWygxvSKjL6pCTAXBXPWajiU+ddcV6VRs3QuRYsex0DGrABM1AcDXnRKZ
+# OlLu2bhh7abbeWBWXCAaBHYmCFbPpspUj6eb5R8AI52+leeMEggPIw1SX21HHh6j
+# rHLF9RJUBJDeSzGCBFwwggRYAgEBMIGGMHIxCzAJBgNVBAYTAlVTMRUwEwYDVQQK
+# EwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20xMTAvBgNV
+# BAMTKERpZ2lDZXJ0IFNIQTIgQXNzdXJlZCBJRCBDb2RlIFNpZ25pbmcgQ0ECEAo0
+# hyG/vRZB2hmqZmgHQWAwCQYFKw4DAhoFAKB4MBgGCisGAQQBgjcCAQwxCjAIoAKA
+# AKECgAAwGQYJKoZIhvcNAQkDMQwGCisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEO
+# MAwGCisGAQQBgjcCARUwIwYJKoZIhvcNAQkEMRYEFLQJZe+DKdlzh9nQWV3QIpyf
+# hV1lMA0GCSqGSIb3DQEBAQUABIIBAECVnapCN4xY2AWioMdxGINLs7KgymnHQsmM
+# KpvM5CChQC5Ub1D+5EPSWcXVdlrnWXaQLxIMDYlIE/UObZixSjq7IzuqQqMCq1iN
+# QdRWVi6i4KTu9ddGKc836yR5DmjqZpnwPhmfzbC6QuN49uumsSlvQ3h0qCq9CuNy
+# IuxMHw3Zd0wrt5SGcehDcvEY5Snny4n6UWSGvo8RPOrF1AWTHnRg1GAvwA240wv7
+# yV0Fr3TfqWH3IyRgmqWgk3vZOTOybgB1cx4A/Wzdv7S5kW3QvnFh+4dXoQ5PFPZa
+# 6S/cixFX7LP4fPQOF1WTop0qQ5kv7YlyFgHLJJO38S3iau6Ii3OhggIwMIICLAYJ
+# KoZIhvcNAQkGMYICHTCCAhkCAQEwgYYwcjELMAkGA1UEBhMCVVMxFTATBgNVBAoT
+# DERpZ2lDZXJ0IEluYzEZMBcGA1UECxMQd3d3LmRpZ2ljZXJ0LmNvbTExMC8GA1UE
+# AxMoRGlnaUNlcnQgU0hBMiBBc3N1cmVkIElEIFRpbWVzdGFtcGluZyBDQQIQDUJK
+# 4L46iP9gQCHOFADw3TANBglghkgBZQMEAgEFAKBpMBgGCSqGSIb3DQEJAzELBgkq
+# hkiG9w0BBwEwHAYJKoZIhvcNAQkFMQ8XDTIxMDYxMzEzMTQzMFowLwYJKoZIhvcN
+# AQkEMSIEIB94TaklQmMgOJjJfiNcdS9382D++4iAAvqTmyeXtkiEMA0GCSqGSIb3
+# DQEBAQUABIIBAAauZI/vm2ke2aa+01G9lBoUikjCjSKIzEkg8I4eIZQ1jaLvYouy
+# dGCKNVIZkvEQSH0oXN8Lv+AQkJoXbnJrHCzXDgFf9NVLvSrY6mdE2jWKCuQhVNWH
+# EBCmLyNbeiTxiukjQfnfqvqTaGKO2P6+Ke9ALuywx8PwpJbeKbnxwWMJnxe2EAID
+# f/UFVeF5a6mN5eJLVemO36VroewLs0VFh8ImiDSZxGpEbEaRVPvIXPrL/eGXm8mJ
+# 9AVu06eYD0pcM+NiQ+R41uMB4mO+2d24UpOX6wA3opqDfVlwOYro2RYrlXyAo4AV
+# nsgKxY7wRbTON2c95o3vlJB+74LoGi7bW/Q=
 # SIG # End signature block
