@@ -11,7 +11,9 @@ The Tenant Dial Plan Tool is a PowerShell based tool that allows you to configur
 ![Image](https://github.com/jamescussen/teams-tenant-dial-plan-tool/raw/master/TeamsTenantDialPlanEditorv1.00-400px.png)
 
 
- 
+**Version 1.01**
+  *  The Skype for Business PowerShell module is being deprecated and the Teams Module is finally good enough to use with this tool. As a result, this tool has now been updated for use with the Microsoft Teams PowerShell Module version 2.3.1 or above.
+
 
 
 **Tool Features**
